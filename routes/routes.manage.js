@@ -39,9 +39,7 @@ router.post('/endpoint/create', async (req, res) => {
     try {
         const data1 = await Hosts.find({ "hostname": req.body.hostname });
         let host_id = (data1)[0]._id
-        console.log(req.body.hostname)
-        console.log(data1)
-        console.log(host_id)
+
         const data = new Endpoints({
             host_id: host_id,
             endpoint: req.body.endpoint,
@@ -73,7 +71,6 @@ router.post('/endpoint/update', async (req, res) => {
             method: req.body.method
         })
 
-        console.log("endpoint", endpoint)
 
         try {
             const dataToSave = await endpoint[0].updateOne({ builder_id: req.body.builder_id })
@@ -92,7 +89,6 @@ router.post('/builder/create', async (req, res) => {
     try {
         const boop = await getFields(req)
         const fields = boop[0]
-        console.log(fields)
         const template = (await Builder.find({ "template": true }))[0]._doc;
 
         let editTemplate = JSON.stringify(template);
@@ -150,7 +146,14 @@ router.post('/builder/create', async (req, res) => {
                 finalizedTemplate.edges.push(databayoo)
                 finalizedTemplate.edges.push(databayoo2)
             })
+        }
 
+        for (const node of finalizedTemplate.nodes) {
+            console.log(node.data);
+            const savedNode = await new Nodes(node.data).save();
+            console.log(savedNode)
+            node.node_id = savedNode._id;
+            delete node.data;
         }
 
         const data = new Builder({
@@ -275,6 +278,7 @@ router.get('/getNode', async (req, res) => {
 router.get('/getEndpoint', async (req, res) => {
     try {
         const url = "https:/" + req.query.path
+        console.log(url)
         const parsed = new URL(url)
         const oasUrl = `${parsed.protocol}//${parsed.host}`
 
@@ -305,9 +309,51 @@ router.get('/getEndpoint', async (req, res) => {
 
         const nodeToSave = await Promise.all(nodes.map(async (node) => {
             let nodeToSendItem = node;
+            if (node.node_id) {
+                const nodeData = await Nodes.findById(node.node_id);
 
-            if (node.data.node_id && node.node_id) {
-                nodeToSendItem.data["node_data"] = await Nodes.findById(node.node_id);
+                if (!Object.keys(nodeData).includes("fields")) {
+                    const oasPathways = parsed.pathname.split("/").slice(1).map((path, index, arr) => (index === arr.length - 1) ? path : "/" + path);
+                    const pathwayData = getDataFromPath(oasPathways, oas.paths);
+                    let fields = { in: [], out: [] };
+
+                    if (method === "POST" && pathwayData) {
+                        const getRefData = (ref) => getDataFromPath(ref.split("/").slice(1), oas._doc).properties;
+
+                        if ((nodeData.headerType == 2) || (nodeData.headerType == 4)) {
+                            fields["in"] = getRefData(pathwayData.requestBody.content[Object.keys(pathwayData.requestBody.content)[0]].schema.__ref);
+                        }
+
+                        if ((nodeData.headerType == 1) || (nodeData.headerType == 3)) {
+                            fields["out"] = getRefData(pathwayData.responses["201"].content[Object.keys(pathwayData.responses["201"].content)[0]].schema.__ref);
+                            (fields["out"]["__header"] ??= {})["status"] = "201";
+                        }
+
+                        const savedData = await Nodes.findByIdAndUpdate(node.node_id, { fields })
+
+                        nodeToSendItem["node_id"] = savedData._id;
+                        nodeToSendItem["data"] = savedData;
+                        nodeToSendItem["data"]["fields"] = fields
+                    } else {
+                        const getRefData = (ref) => getDataFromPath(ref.split("/").slice(1), oas._doc).properties;
+
+                        if ((nodeData.headerType == 2) || (nodeData.headerType == 4)) {
+                            fields["in"] = []//getRefData(pathwayData.requestBody.content[Object.keys(pathwayData.requestBody.content)[0]].schema.__ref);
+                        }
+
+                        if ((nodeData.headerType == 1) || (nodeData.headerType == 3)) {
+                            fields["out"] = [];//getRefData(pathwayData.responses["201"].content[Object.keys(pathwayData.responses["201"].content)[0]].schema.__ref);
+                            //(fields["out"]["__header"] ??= {})["status"] = "201";
+                        }
+
+                        const savedData = await Nodes.findByIdAndUpdate(node.node_id, { fields })
+                        nodeToSendItem["node_id"] = savedData._id;
+                        nodeToSendItem["data"] = savedData;
+                        nodeToSendItem["data"]["fields"] = fields
+                    }
+                } else {
+                    nodeToSendItem["data"] = nodeData
+                }
             } else if (node.data.headerType) {
                 const oasPathways = parsed.pathname.split("/").slice(1).map((path, index, arr) => (index === arr.length - 1) ? path : "/" + path);
                 const pathwayData = getDataFromPath(oasPathways, oas.paths);
@@ -327,7 +373,7 @@ router.get('/getEndpoint', async (req, res) => {
 
                     const savedData = await new Nodes({ fields }).save();
 
-                    nodeToSendItem.data["node_id"] = savedData._id;
+                    nodeToSendItem["node_id"] = savedData._id;
                     nodeToSendItem.data["node_data"] = savedData;
                 }
             }
@@ -342,7 +388,7 @@ router.get('/getEndpoint', async (req, res) => {
             Builder.findByIdAndUpdate(endpoint._doc.builder_id, { "nodes": nodeToSave }).then((e) => { })
         }
         fragileBuilder.nodes = nodesToSend
-
+        console.log("hmm")
         res.status(200).json({ issue: false, oas: oas, endpoint: endpoint._doc, builder: fragileBuilder })
     }
     catch (error) {
@@ -411,8 +457,6 @@ async function getFields(req) {
 
         const pathwayData = getDataFromPath(oasPathways, oas.paths);
         let fields = {};
-
-        console.log("pathwayData", pathwayData)
 
         const lastSlashIndex = parsed.pathname.lastIndexOf('/');
         const path = parsed.pathname.substring(0, lastSlashIndex);   // "boop/boop"
