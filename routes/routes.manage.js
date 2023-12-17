@@ -24,10 +24,11 @@ router.post('/host/create', async (req, res) => {
 })
 
 router.post('/node/create', async (req, res) => {
-    const data = new Nodes({ fields: req.body.out })
+    const data = new Nodes({ fields: { in: {}, out: req.body.out }, headerType: false, function: req.body.out.__type.replace("__", ""), inputData: null, nodeType: 0 })
 
     try {
         const dataToSave = await data.save();
+        console.log(dataToSave)
         res.status(200).json(dataToSave)
     }
     catch (error) {
@@ -36,8 +37,12 @@ router.post('/node/create', async (req, res) => {
 })
 
 router.post('/endpoint/create', async (req, res) => {
+    console.log("data1")
+
     try {
-        const data1 = await Hosts.find({ "hostname": req.body.hostname });
+        const data1 = await Hosts.find({ "forwards": req.body.hostname });
+        console.log(data1)
+
         let host_id = (data1)[0]._id
 
         const data = new Endpoints({
@@ -48,6 +53,8 @@ router.post('/endpoint/create', async (req, res) => {
             rely: false,
             builder_id: req.body.builder_id ?? null
         })
+        console.log(data)
+
         try {
             const dataToSave = await data.save();
             res.status(200).json(dataToSave)
@@ -63,13 +70,15 @@ router.post('/endpoint/create', async (req, res) => {
 
 router.post('/endpoint/update', async (req, res) => {
     try {
-        const data1 = await Hosts.find({ "hostname": req.body.hostname });
+        const data1 = await Hosts.find({ "forwards": req.body.hostname });
+        console.log(data1)
         let host_id = (data1)[0]._id
         const endpoint = await Endpoints.find({
             host_id: host_id,
             endpoint: req.body.endpoint,
             method: req.body.method
         })
+        console.log(endpoint)
 
 
         try {
@@ -122,6 +131,7 @@ router.post('/builder/create', async (req, res) => {
                     "sourceHandle": `flow-source-${gen1}-${field}`,
                     "target": gen2,
                     "targetHandle": `flow-target-${gen2}-${field}`,
+                    "type": "param",
                     "id": `${gen1}-${gen2}-${field}-${generateRandomString()}`,
                     "animated": false,
                     "style": {
@@ -135,6 +145,7 @@ router.post('/builder/create', async (req, res) => {
                     "sourceHandle": `flow-source-${gen3}-${field}`,
                     "target": gen4,
                     "targetHandle": `flow-target-${gen4}-${field}`,
+                    "type": "param",
                     "id": `${gen3}-${gen4}-${field}-${generateRandomString()}`,
                     "animated": false,
                     "style": {
@@ -277,7 +288,7 @@ router.get('/getNode', async (req, res) => {
 
 router.get('/getEndpoint', async (req, res) => {
     try {
-        const url = "https:/" + req.query.path
+        const url = "http:/" + req.query.path
         console.log(url)
         const parsed = new URL(url)
         const oasUrl = `${parsed.protocol}//${parsed.host}`
@@ -291,12 +302,13 @@ router.get('/getEndpoint', async (req, res) => {
 
 
 
-        const host = (await Hosts.find({ "hostname": parsed.host.split(":")[0] }))[0];
+        const host = (await Hosts.find({ "forwards": parsed.host.split(":")[0] }))[0];
         if (!host) throw { error: "NoHost" }
 
         const endpoint = (await Endpoints.find({ "host_id": host._id, endpoint: path, method: method }))[0];
         if (!endpoint) throw { error: "NoEndpoint", host: host._id }
 
+        console.log(endpoint)
 
         //const oas = await OAS.findById(host._doc.oas_spec);
         const builder = await Builder.findById(endpoint._doc.builder_id)
@@ -309,7 +321,7 @@ router.get('/getEndpoint', async (req, res) => {
 
         const nodeToSave = await Promise.all(nodes.map(async (node) => {
             let nodeToSendItem = node;
-            if (node.node_id) {
+            if (node.node_id && node.type == "apiNode") {
                 const nodeData = await Nodes.findById(node.node_id);
 
                 if (!Object.keys(nodeData).includes("fields")) {
@@ -354,7 +366,7 @@ router.get('/getEndpoint', async (req, res) => {
                 } else {
                     nodeToSendItem["data"] = nodeData
                 }
-            } else if (node.data.headerType) {
+            } else if (node.type == "apiNode" && node.data.headerType) {
                 const oasPathways = parsed.pathname.split("/").slice(1).map((path, index, arr) => (index === arr.length - 1) ? path : "/" + path);
                 const pathwayData = getDataFromPath(oasPathways, oas.paths);
                 let fields = {};
@@ -376,6 +388,15 @@ router.get('/getEndpoint', async (req, res) => {
                     nodeToSendItem["node_id"] = savedData._id;
                     nodeToSendItem.data["node_data"] = savedData;
                 }
+            } else if (node.id && node.type == "functionNode") {
+                const nodeData = (await Nodes.findById(node.id)).toObject({virtuals: true});
+                if (!Object.keys(nodeData).includes("fields")) {
+                    console.error("node not found??")
+                } else {
+                    console.log("function nodes")
+                    console.log(node.id, nodeData)
+                    nodeToSendItem["data"] = nodeData
+                }
             }
 
             nodesToSend.push(nodeToSendItem);
@@ -385,6 +406,7 @@ router.get('/getEndpoint', async (req, res) => {
 
         if (nodeToSave && change) {
             console.log(JSON.stringify(nodeToSave))
+            console.log("updated nodes", nodeToSave)
             Builder.findByIdAndUpdate(endpoint._doc.builder_id, { "nodes": nodeToSave }).then((e) => { })
         }
         fragileBuilder.nodes = nodesToSend
@@ -442,7 +464,7 @@ function generateRandomString() {
 
 async function getFields(req) {
     try {
-        const url = "https://" + req.body.hostname + req.body.path + "/" + req.body.method.toLowerCase()
+        const url = "http://" + req.body.hostname + req.body.path + "/" + req.body.method.toLowerCase()
         console.log(url)
         const parsed = new URL(url)
         const oasUrl = `${parsed.protocol}//${parsed.host}`

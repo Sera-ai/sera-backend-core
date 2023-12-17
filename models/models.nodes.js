@@ -13,6 +13,18 @@ const dataSchema = new mongoose.Schema({
         required: false,
         type: Number
     },
+    function: {
+        required: false,
+        type: String
+    },
+    inputData: {
+        required: false,
+        type: String
+    },
+    nodeType: {
+        required: false,
+        type: Number
+    },
 }, { collection: "builder_nodes" })
 
 module.exports = mongoose.model('builder_nodes', dataSchema)
