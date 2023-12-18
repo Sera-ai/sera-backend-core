@@ -1,8 +1,7 @@
-require('dotenv').config();
 const cors = require('cors');
 const express = require('express');
 const mongoose = require('mongoose');
-const mongoString = process.env.DATABASE_URL;
+const mongoString = process.env.DB_HOST;
 const bodyParser = require('body-parser');
 const manageRoutes = require('./routes/routes.manage');
 
@@ -19,6 +18,6 @@ const server = http.createServer(app);
 app.use(cors(), express.json(), bodyParser.urlencoded({ extended: true }), bodyParser.json());
 app.use('/manage', manageRoutes)
 
-server.listen(process.env.PORT, () => {
-    console.log(`Builder Started at ${process.env.PORT}`)
+server.listen(process.env.BE_BUILDER_PORT, () => {
+    console.log(`Builder Started at ${process.env.BE_BUILDER_PORT}`)
 })
