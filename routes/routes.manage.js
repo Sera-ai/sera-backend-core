@@ -389,17 +389,32 @@ router.get('/getEndpoint', async (req, res) => {
                     nodeToSendItem.data["node_data"] = savedData;
                 }
             } else if (node.id && node.type == "functionNode") {
-                const freshNodes = await Nodes.findById(node.id)
-                if (!freshNodes) return "no nodes"
-                const nodeData = (freshNodes).toObject({ virtuals: true });
-                if (!Object.keys(nodeData).includes("fields")) {
-                    console.error("node not found??")
-                } else {
-                    console.log("function nodes")
-                    console.log(node.id, nodeData)
-                    nodeToSendItem["data"] = nodeData
+                try {
+                    // Fetch the node from the database
+                    const freshNode = await Nodes.findById(node.id);
+            
+                    // Handle case where no node is found
+                    if (!freshNode) {
+                        console.log(`No node found with id: ${node.id}`);
+                        return "no nodes";
+                    }
+            
+                    // Convert the document to a plain JavaScript object, including virtuals
+                    const nodeData = freshNode.toObject({ virtuals: true });
+            
+                    // Check if 'fields' property exists in nodeData
+                    if (!('fields' in nodeData)) {
+                        console.error(`'fields' property not found in node data for id: ${node.id}`);
+                    } else {
+                        console.log(`Function node found: ${node.id}`, nodeData);
+                        nodeToSendItem["data"] = nodeData;
+                    }
+                } catch (error) {
+                    // Log and handle any errors that occur
+                    console.error(`Error processing node with id: ${node.id}`, error);
                 }
             }
+            
 
             nodesToSend.push(nodeToSendItem);
             return node;
