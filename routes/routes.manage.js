@@ -389,7 +389,9 @@ router.get('/getEndpoint', async (req, res) => {
                     nodeToSendItem.data["node_data"] = savedData;
                 }
             } else if (node.id && node.type == "functionNode") {
-                const nodeData = (await Nodes.findById(node.id)).toObject({virtuals: true});
+                const freshNodes = await Nodes.findById(node.id)
+                if (!freshNodes) return "no nodes"
+                const nodeData = (freshNodes).toObject({ virtuals: true });
                 if (!Object.keys(nodeData).includes("fields")) {
                     console.error("node not found??")
                 } else {
