@@ -25,6 +25,3 @@ database.once('connected', () => {
     })
 
 })
-
-
-
