@@ -3,7 +3,8 @@ const express = require('express');
 const mongoose = require('mongoose');
 const mongoString = process.env.DB_HOST;
 const bodyParser = require('body-parser');
-const manageRoutes = require('./routes/routes.manage');
+const manageRoutes = require('./src/routes/routes.manage');
+const endpointRoutes = require('./src/routes/routes.endpoint');
 
 mongoose.connect(`${mongoString}/Sera`, { useNewUrlParser: true, useUnifiedTopology: true });
 const database = mongoose.connection;
@@ -19,6 +20,7 @@ database.once('connected', () => {
 
     app.use(cors(), express.json(), bodyParser.urlencoded({ extended: true }), bodyParser.json());
     app.use('/manage', manageRoutes)
+    app.use('/manage/endpoint', endpointRoutes)
 
     server.listen(process.env.BE_BUILDER_PORT, () => {
         console.log(`Builder Started at ${process.env.BE_BUILDER_PORT}`)
