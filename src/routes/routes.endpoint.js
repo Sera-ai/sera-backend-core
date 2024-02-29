@@ -54,7 +54,6 @@ router.get("/get", async (req, res) => {
 
       parameters = getRequestParameters(endpoint, api);
       response = getResponseParameters(endpoint, api);
-      console.log(parameters);
 
       // Assuming request headers are defined under `parameters` with `"in": "header"`
 
@@ -62,16 +61,6 @@ router.get("/get", async (req, res) => {
       responseCodes = Object.keys(
         api.paths[path][method.toLocaleLowerCase()].responses
       );
-      if (responseCodes.length > 0) {
-        const firstResponseHeaders =
-          api.paths[path][method.toLocaleLowerCase()].responses[
-            responseCodes[0]
-          ].headers;
-        console.log(
-          "Response Headers of the first response code:",
-          firstResponseHeaders
-        );
-      }
     } catch (error) {
       console.error("Error parsing OAS document:", error);
     }
@@ -85,7 +74,6 @@ router.get("/get", async (req, res) => {
     if (!builderData) throw { error: "NoBuilder", host: host._id };
     const { nodes, edges } = builderData;
 
-    console.log("hmm");
     res.status(200).json({
       issue: false,
       oas: oas,
@@ -125,7 +113,6 @@ router.post("/create", async (req, res) => {
       rely: false,
       builder_id: req.body.builder_id ?? null,
     });
-    console.log(data);
 
     try {
       const dataToSave = await data.save();
@@ -141,14 +128,12 @@ router.post("/create", async (req, res) => {
 router.post("/update", async (req, res) => {
   try {
     const data1 = await Hosts.find({ forwards: req.body.hostname });
-    console.log(data1);
     let host_id = data1[0]._id;
     const endpoint = await Endpoints.find({
       host_id: host_id,
       endpoint: req.body.endpoint,
       method: req.body.method,
     });
-    console.log(endpoint);
 
     try {
       const dataToSave = await endpoint[0].updateOne({

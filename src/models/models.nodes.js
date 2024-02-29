@@ -1,10 +1,6 @@
 const mongoose = require('mongoose');
 
 const dataSchema = new mongoose.Schema({
-    id: {
-        required: false,
-        type: String
-    },
     width: {
         required: false,
         type: Number
@@ -41,7 +37,7 @@ const dataSchema = new mongoose.Schema({
         required: false,
         type: Boolean
     },
-    node_id: {
+    id: {
         required: false,
         type: String
     },
