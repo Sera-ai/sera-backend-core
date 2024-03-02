@@ -31,13 +31,7 @@ router.post("/host/create", async (req, res) => {
 });
 
 router.post("/node/create", async (req, res) => {
-  const data = new Nodes({
-    fields: { in: {}, out: req.body.out },
-    headerType: false,
-    function: req.body.out.__type.replace("__", ""),
-    inputData: null,
-    nodeType: 0,
-  });
+  const data = new Nodes();
 
   try {
     const dataToSave = await data.save();
@@ -49,7 +43,6 @@ router.post("/node/create", async (req, res) => {
 });
 
 router.post("/builder/create", async (req, res) => {
-
   //Why do I make two ID's? _id is created by mongo, and this generator makes id. react flow requires an "id" property and using the template style I did below makes it kind of hard to link _id into id
   try {
     const parameters = await getFields(req);
