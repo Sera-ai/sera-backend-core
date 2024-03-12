@@ -16,7 +16,7 @@ const {
   getResponseParameters,
 } = require("../helpers/helpers.oas");
 
-router.get("/get", async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     const url = "http:/" + req.query.path;
     console.log(url);
@@ -77,7 +77,7 @@ router.get("/get", async (req, res) => {
     res.status(200).json({
       issue: false,
       oas: oas,
-      endpoint: endpoint._doc,
+      builderId: endpoint._doc.builder_id,
       builder: { nodes, edges },
     });
   } catch (error) {
@@ -145,6 +145,30 @@ router.post("/update", async (req, res) => {
     }
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+});
+
+router.post("/node/create", async (req, res) => {
+  console.log("hmm")
+  const builderId = req.get("x-sera-builder");
+
+  if (builderId) {
+    try {
+      const nodedata = new Nodes(req.body);
+      const savedData = await nodedata.save();
+
+      Builder.findByIdAndUpdate(builderId, {
+        $push: { nodes: new mongoose.Types.ObjectId(savedData._id) },
+      }).then((e) => {
+        //create socket interaction
+        //socket.broadcast.to(builder).emit("nodeCreate", { newNode: savedData });
+        req.socket.emit("nodeCreated", { node: savedData, builder: builderId });
+      });
+      res.status(200)
+
+    } catch (error) {
+      res.status(400).json({ message: error.message });
+    }
   }
 });
 
