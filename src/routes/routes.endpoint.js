@@ -118,7 +118,7 @@ router.post("/create", async (req, res) => {
       const dataToSave = await data.save();
       res.status(200).json(dataToSave);
     } catch (error) {
-      res.status(400).json({ message: error.message });
+      res.status(500).json({ message: error.message });
     }
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -141,15 +141,14 @@ router.post("/update", async (req, res) => {
       });
       res.status(200).json(dataToSave);
     } catch (error) {
-      res.status(400).json({ message: error.message });
+      res.status(500).json({ message: error.message });
     }
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-router.post("/node/create", async (req, res) => {
-  console.log("hmm")
+router.post("/node", async (req, res) => {
   const builderId = req.get("x-sera-builder");
 
   if (builderId) {
@@ -164,11 +163,112 @@ router.post("/node/create", async (req, res) => {
         //socket.broadcast.to(builder).emit("nodeCreate", { newNode: savedData });
         req.socket.emit("nodeCreated", { node: savedData, builder: builderId });
       });
-      res.status(200)
-
+      res.status(200);
     } catch (error) {
-      res.status(400).json({ message: error.message });
+      res.status(500).json({ message: error.message });
     }
+  }
+});
+
+router.delete("/node", async (req, res) => {
+  const builderId = req.get("x-sera-builder");
+  const nodeId = req.body[0]._id;
+  console.log(req.body);
+  if (!builderId || !nodeId) {
+    return res.status(500).json({ message: "Missing builder ID or node ID" });
+  }
+  try {
+    const deletedNode = await Nodes.findByIdAndDelete(
+      new mongoose.Types.ObjectId(nodeId)
+    );
+    if (!deletedNode) {
+      return res.status(404).json({ message: "Node not found" });
+    }
+
+    await Builder.findByIdAndUpdate(builderId, {
+      $pull: { nodes: deletedNode._id },
+    });
+
+    req.socket.emit("nodeDeleted", {
+      node: req.body,
+      builder: builderId,
+    });
+    res.status(200).json({ message: "Node deleted successfully" });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.post("/edge", async (req, res) => {
+  const builderId = req.get("x-sera-builder");
+  if (builderId) {
+    try {
+      const edgedata = new Edges(req.body);
+      const savedData = await edgedata.save();
+
+      Builder.findByIdAndUpdate(builderId, {
+        $push: { edges: new mongoose.Types.ObjectId(savedData._id) },
+      }).then((e) => {
+        //create socket interaction
+        //socket.broadcast.to(builder).emit("nodeCreate", { newNode: savedData });
+        req.socket.emit("edgeCreated", { edge: savedData, builder: builderId });
+      });
+      res.status(200);
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  }
+});
+
+router.patch("/edge", async (req, res) => {
+  const builderId = req.get("x-sera-builder");
+  if (builderId) {
+    console.log(req.body);
+    try {
+      Edges.findByIdAndUpdate(req.body.id, {
+        ...req.body,
+      }).then((e) => {
+        req.socket.emit("edgeUpdated", {
+          edge: req.body,
+          builder: builderId,
+        });
+      });
+
+      res.status(200);
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  }
+});
+
+router.delete("/edge", async (req, res) => {
+  const builderId = req.get("x-sera-builder");
+  const edgeId = req.body[0].id;
+  console.log(req.body);
+  if (!builderId || !edgeId) {
+    return res.status(500).json({ message: "Missing builder ID or edge ID" });
+  }
+  try {
+    const deletedEdge = await Edges.findByIdAndDelete(
+      new mongoose.Types.ObjectId(edgeId)
+    );
+    if (!deletedEdge) {
+      return res.status(404).json({ message: "Edge not found" });
+    }
+
+    await Builder.findByIdAndUpdate(builderId, {
+      $pull: { edges: deletedEdge._id },
+    });
+
+    req.socket.emit("edgeDeleted", {
+      edge: req.body,
+      builder: builderId,
+    });
+    res.status(200).json({ message: "Edge deleted successfully" });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: error.message });
   }
 });
 
@@ -210,10 +310,14 @@ async function getBuilder(builderId, parameters, response) {
     }
   });
 
-  const edges = await Edges.find({
-    _id: { $in: edgeIds },
-  });
-
+  const edges = (
+    await Edges.find({
+      _id: { $in: edgeIds },
+    }).lean()
+  ).map((edge) => ({
+    ...edge,
+    id: edge._id,
+  }));
   // nodes and edges now contain the documents corresponding to the IDs in builder_inventory
   return { nodes, edges };
 }
