@@ -7,6 +7,7 @@ const Nodes = require("../models/models.nodes");
 const Edges = require("../models/models.edges");
 const Endpoints = require("../models/models.endpoints");
 const Plugins = require("../models/models.plugins");
+const EventStruc = require("../models/models.eventStruc");
 const router = express.Router();
 
 const SwaggerParser = require("@apidevtools/swagger-parser");
@@ -237,6 +238,18 @@ router.get("/getNode", async (req, res) => {
   try {
     const node_data = await Nodes.findById(req.query.id);
     console.log(node_data);
+    res.send(node_data);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.get("/getNodeStruc", async (req, res) => {
+  try {
+    const node_data = await EventStruc.findOne({
+      type: req.query.type,
+      event: req.query.event,
+    });
     res.send(node_data);
   } catch (error) {
     res.status(500).json({ message: error.message });

@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 const Hosts = require("../models/models.hosts");
 const OAS = require("../models/models.oas");
 const Builder = require("../models/models.builder");
+const EventBuilder = require("../models/models.eventBuilder");
 const Nodes = require("../models/models.nodes");
 const Edges = require("../models/models.edges");
 const Endpoints = require("../models/models.endpoints");
@@ -17,67 +18,79 @@ const {
 } = require("../helpers/helpers.oas");
 
 router.get("/", async (req, res) => {
+  let endpoint;
+  let parameters = {};
+  let response = {};
+  let responseCodes = [];
+  let mongoEndpoint = null;
+  let oas = null;
+  let host = null;
+
   try {
-    const url = "http:/" + req.query.path;
-    console.log(url);
-    const parsed = new URL(url);
-    const oasUrl = `${parsed.protocol}//${parsed.host}`;
+    if (req.query.path) {
+      const url = "http:/" + req.query.path;
+      console.log(url);
+      const parsed = new URL(url);
+      const oasUrl = `${parsed.protocol}//${parsed.host}`;
 
-    const lastSlashIndex = parsed.pathname.lastIndexOf("/");
-    const path = parsed.pathname.substring(0, lastSlashIndex); // "boop/boop"
-    const method = parsed.pathname.substring(lastSlashIndex + 1).toUpperCase(); // "boop"
-    const oas = (
-      await OAS.findOne({ servers: { $elemMatch: { url: oasUrl } } })
-    ).toObject();
+      const lastSlashIndex = parsed.pathname.lastIndexOf("/");
+      const path = parsed.pathname.substring(0, lastSlashIndex); // "boop/boop"
+      const method = parsed.pathname
+        .substring(lastSlashIndex + 1)
+        .toUpperCase(); // "boop"
+      oas = (
+        await OAS.findOne({ servers: { $elemMatch: { url: oasUrl } } })
+      ).toObject();
 
-    const host = (await Hosts.find({ forwards: parsed.host.split(":")[0] }))[0];
-    if (!host) throw { error: "NoHost" };
+      host = (await Hosts.find({ forwards: parsed.host.split(":")[0] }))[0];
+      if (!host) throw { error: "NoHost" };
 
-    const endpoint = (
-      await Endpoints.find({
-        host_id: host._id,
-        endpoint: path,
-        method: method,
-      })
-    )[0];
-    if (!endpoint) throw { error: "NoEndpoint", host: host._id };
+      mongoEndpoint = (
+        await Endpoints.find({
+          host_id: host._id,
+          endpoint: path,
+          method: method,
+        })
+      )[0];
+      if (!mongoEndpoint) throw { error: "NoEndpoint", host: host._id };
 
-    const { _id: removedId, ...parseableOas } = oas;
-    let parameters = {};
-    let response = {};
-    let responseCodes = [];
+      const { _id: removedId, ...parseableOas } = oas;
 
-    try {
-      const api = await SwaggerParser.parse(parseableOas);
+      try {
+        const api = await SwaggerParser.parse(parseableOas);
 
-      let endpoint = api.paths[path][method.toLocaleLowerCase()];
+        endpoint = api.paths[path][method.toLocaleLowerCase()];
 
-      parameters = getRequestParameters(endpoint, api);
-      response = getResponseParameters(endpoint, api);
+        parameters = getRequestParameters(endpoint, api);
+        response = getResponseParameters(endpoint, api);
 
-      // Assuming request headers are defined under `parameters` with `"in": "header"`
+        // Assuming request headers are defined under `parameters` with `"in": "header"`
 
-      // For demonstration, accessing response headers of the first response code
-      responseCodes = Object.keys(
-        api.paths[path][method.toLocaleLowerCase()].responses
-      );
-    } catch (error) {
-      console.error("Error parsing OAS document:", error);
+        // For demonstration, accessing response headers of the first response code
+        responseCodes = Object.keys(
+          api.paths[path][method.toLocaleLowerCase()].responses
+        );
+      } catch (error) {
+        console.error("Error parsing OAS document:", error);
+      }
     }
+
+    const builderId = req.query.event || mongoEndpoint?._doc.builder_id;
 
     //const oas = await OAS.findById(host._doc.oas_spec);
     const builderData = await getBuilder(
-      endpoint._doc.builder_id,
+      builderId,
       parameters,
-      response
+      response,
+      req.query.event ? true : false
     );
-    if (!builderData) throw { error: "NoBuilder", host: host._id };
+    if (!builderData) throw { error: "NoBuilder", host: host?._id };
     const { nodes, edges } = builderData;
 
     res.status(200).json({
       issue: false,
       oas: oas,
-      builderId: endpoint._doc.builder_id,
+      builderId: builderId,
       builder: { nodes, edges },
     });
   } catch (error) {
@@ -153,8 +166,36 @@ router.post("/node", async (req, res) => {
 
   if (builderId) {
     try {
+      console.log(req.body);
       const nodedata = new Nodes(req.body);
       const savedData = await nodedata.save();
+
+      if (req.path.type == "builder") {
+        Builder.findByIdAndUpdate(builderId, {
+          $push: { nodes: new mongoose.Types.ObjectId(savedData._id) },
+        }).then((e) => {
+          //create socket interaction
+          //socket.broadcast.to(builder).emit("nodeCreate", { newNode: savedData });
+          req.socket.emit("nodeCreated", {
+            node: savedData,
+            builder: builderId,
+          });
+        });
+      } else {
+        EventBuilder.findOneAndUpdate(
+          { slug: builderId },
+          {
+            $push: { nodes: new mongoose.Types.ObjectId(savedData._id) },
+          }
+        ).then((e) => {
+          //create socket interaction
+          //socket.broadcast.to(builder).emit("nodeCreate", { newNode: savedData });
+          req.socket.emit("nodeCreated", {
+            node: savedData,
+            builder: builderId,
+          });
+        });
+      }
 
       Builder.findByIdAndUpdate(builderId, {
         $push: { nodes: new mongoose.Types.ObjectId(savedData._id) },
@@ -207,12 +248,19 @@ router.post("/edge", async (req, res) => {
       const edgedata = new Edges(req.body);
       const savedData = await edgedata.save();
 
+      // Set the id field to match _id after the initial save
+      savedData.id = savedData._id;
+      const finalData = await savedData.save();
+
       Builder.findByIdAndUpdate(builderId, {
-        $push: { edges: new mongoose.Types.ObjectId(savedData._id) },
+        $push: { edges: new mongoose.Types.ObjectId(finalData._id) },
       }).then((e) => {
         //create socket interaction
         //socket.broadcast.to(builder).emit("nodeCreate", { newNode: savedData });
-        req.socket.emit("edgeCreated", { edge: savedData, builder: builderId });
+        req.socket.emit("edgeCreated", {
+          edge: finalData,
+          builder: builderId,
+        });
       });
       res.status(200);
     } catch (error) {
@@ -274,18 +322,23 @@ router.delete("/edge", async (req, res) => {
 
 module.exports = router;
 
-async function getBuilder(builderId, parameters, response) {
+async function getBuilder(builderId, parameters, response, event = false) {
   // First, find the builder_inventory document by its ID
-  const builderInventory = await Builder.findById(builderId);
-  if (!builderInventory) {
+
+  const inventoryRes = event
+    ? await EventBuilder.findOne({ slug: builderId })
+    : await Builder.findById(builderId);
+  console.log(inventoryRes);
+
+  if (!inventoryRes) {
     console.log("Builder inventory not found");
     return;
   }
   // Extract Object IDs from nodes and edges, converting them to Mongoose Object IDs
-  const nodeIds = builderInventory.nodes.map(
+  const nodeIds = inventoryRes.nodes.map(
     (node) => new mongoose.Types.ObjectId(node._id)
   );
-  const edgeIds = builderInventory.edges.map(
+  const edgeIds = inventoryRes.edges.map(
     (edge) => new mongoose.Types.ObjectId(edge._id)
   );
 
