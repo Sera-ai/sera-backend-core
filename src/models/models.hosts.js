@@ -1,22 +1,29 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
-const dataSchema = new mongoose.Schema({
-    hostname: {
-        required: true,
-        type: Array
+const dataSchema = new mongoose.Schema(
+  {
+    oas_spec: {
+      required: false,
+      type: mongoose.Types.ObjectId,
     },
-    port: {
-        required: true,
-        type: Array
+    sera_dns: {
+      required: false,
+      type: mongoose.Types.ObjectId,
     },
-    forwards: {
-        required: true,
-        type: String
+    net_config: {
+      required: true,
+      type: Object,
     },
-    strict: {
-        required: true,
-        type: String
-    }
-})
+    frwd_config: {
+      required: true,
+      type: Object,
+    },
+    sera_config: {
+      required: true,
+      type: Object,
+    },
+  },
+  { collection: "sera_hosts" }
+);
 
-module.exports = mongoose.model('hosts', dataSchema)
+module.exports = mongoose.model("sera_hosts", dataSchema);
