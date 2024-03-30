@@ -18,6 +18,30 @@ const {
 } = require("../helpers/helpers.oas");
 
 router.get("/", async (req, res) => {
+  try {
+    let node_data;
+    // Check if the "id" parameter is provided in the query string
+    if (req.query.id) {
+      // Fetch the specific record by ID
+
+      node_data = await Endpoints.find({ _id: req.query.id }).populate([
+        "host_id",
+        "builder_id",
+      ]);
+    } else {
+      // Fetch all records, limited to 100
+      node_data = await Endpoints.find()
+        .populate(["host_id", "builder_id"])
+        .limit(100);
+    }
+    console.log(node_data);
+    res.send(node_data);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.get("/builder", async (req, res) => {
   let endpoint;
   let parameters = {};
   let response = {};
@@ -42,7 +66,10 @@ router.get("/", async (req, res) => {
         await OAS.findOne({ servers: { $elemMatch: { url: oasUrl } } })
       ).toObject();
 
-      host = (await Hosts.find({ forwards: parsed.host.split(":")[0] }))[0];
+      console.log(parsed.host.split(":")[0]);
+      host = (
+        await Hosts.find({ "frwd_config.host": parsed.host.split(":")[0] })
+      )[0];
       if (!host) throw { error: "NoHost" };
 
       mongoEndpoint = (
@@ -112,6 +139,8 @@ router.get("/", async (req, res) => {
   }
 });
 
+router.get("/builder", async (req, res) => {});
+
 router.post("/create", async (req, res) => {
   try {
     const data1 = await Hosts.find({ forwards: req.body.hostname });
@@ -120,11 +149,13 @@ router.post("/create", async (req, res) => {
 
     const data = new Endpoints({
       host_id: host_id,
+      builder_id: req.body.builder_id ?? null,
       endpoint: req.body.endpoint,
       method: req.body.method,
-      debug: true,
-      rely: false,
-      builder_id: req.body.builder_id ?? null,
+      sera_config: {
+        debug: true,
+        rely: false,
+      },
     });
 
     try {

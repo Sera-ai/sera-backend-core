@@ -2,6 +2,7 @@ const express = require("express");
 
 const Hosts = require("../models/models.hosts");
 const OAS = require("../models/models.oas");
+const DNS = require("../models/models.dns");
 const Builder = require("../models/models.builder");
 const Nodes = require("../models/models.nodes");
 const Edges = require("../models/models.edges");
@@ -17,10 +18,16 @@ const {
 } = require("../helpers/helpers.oas");
 
 //Post Method
-router.post("/host/create", async (req, res) => {
+router.post("/host", async (req, res) => {
   const data = new Hosts({
-    hostname: [req.body.hostname],
-    port: req.body.port,
+    frwd_config: {
+      hostname: req.body.hostname,
+      port: req.body.port,
+    },
+    sera_config: {
+      strict: false,
+      learn: true,
+    },
   });
 
   try {
@@ -28,6 +35,60 @@ router.post("/host/create", async (req, res) => {
     res.status(200).json(dataToSave);
   } catch (error) {
     res.status(400).json({ message: error.message });
+  }
+});
+
+router.get("/host", async (req, res) => {
+  try {
+    let node_data;
+    // Check if the "id" parameter is provided in the query string
+    if (req.query.id) {
+      // Fetch the specific record by ID
+      node_data = await Hosts.find({ _id: req.query.id });
+    } else {
+      // Fetch all records, limited to 100
+      node_data = await Hosts.find().limit(100);
+    }
+    console.log(node_data);
+    res.send(node_data);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.get("/host/oas", async (req, res) => {
+  try {
+    let node_data;
+    // Check if the "id" parameter is provided in the query string
+    if (req.query.host) {
+      // Fetch the specific record by ID
+      host_data = await Hosts.findOne({ hostname: req.query.host });
+      oas_data = await OAS.findOne({ _id: host_data.oas_spec });
+
+      res.send(oas_data);
+    } else {
+      res.status(500).json({ message: "no host provided" });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.get("/host/dns", async (req, res) => {
+  try {
+    let node_data;
+    // Check if the "id" parameter is provided in the query string
+    if (req.query.host) {
+      // Fetch the specific record by ID
+      host_data = await Hosts.findOne({ hostname: req.query.host });
+      dns_data = await DNS.findOne({ _id: host_data.sera_dns });
+
+      res.send(dns_data);
+    } else {
+      res.status(500).json({ message: "no host provided" });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 });
 
