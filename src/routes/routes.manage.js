@@ -11,6 +11,8 @@ const Plugins = require("../models/models.plugins");
 const EventStruc = require("../models/models.eventStruc");
 const router = express.Router();
 
+const Converter = require("api-spec-converter");
+const yaml = require("js-yaml");
 const SwaggerParser = require("@apidevtools/swagger-parser");
 const {
   getRequestParameters,
@@ -19,67 +21,161 @@ const {
 
 //Post Method
 router.post("/host", async (req, res) => {
-  function getSecondToLastElement(hostname) {
-    const parts = hostname.split(".");
-    // Ensure there are at least two parts to return the second to last one
-    if (parts.length >= 2) {
-      return parts[parts.length - 2];
-    } else {
-      // Return null or an appropriate value if there's no second to last element
-      return null;
-    }
-  }
-
-  function cleanUrl(url) {
-    // This regex matches "http://", "https://", and "www." at the beginning of the string
-    const pattern = /^(https?:\/\/)?(www\.)?/;
-    return url.replace(pattern, "");
-  }
-
-  const hostdomain = getSecondToLastElement(req.body.hostname);
-
-  const oas = new OAS({
-    openapi: "3.0.1",
-    info: {
-      title: "Minimal API",
-      version: "1.0.0",
-    },
-    servers: [{ url: req.body.hostname }],
-    paths: {},
-  });
-  const oasSave = await oas.save();
-
-  const dns = new DNS({
-    sera_config: {
-      domain: "local.sera",
-      expires: null,
-      sub_domain: hostdomain.substring(0, 8),
-      obfuscated: null,
-    },
-  });
-
-  const dnsSave = await dns.save();
-
-  const data = new Hosts({
-    oas_spec: oasSave._id,
-    sera_dns: dnsSave._id,
-    frwd_config: {
-      host: req.body.hostname,
-      port: req.body.port || 80,
-    },
-    sera_config: {
-      strict: false,
-      learn: true,
-      https: true,
-    },
-    hostname: cleanUrl(req.body.hostname),
-  });
-
+  let oas;
+  let oasJsonFinal = {};
+  let hostname = req.body.hostname;
   try {
-    const dataToSave = await data.save();
-    res.status(200).json(dataToSave);
-  } catch (error) {
-    res.status(400).json({ message: error.message });
+    function getSecondToLastElement(hostname) {
+      const parts = hostname.split(".");
+      // Ensure there are at least two parts to return the second to last one
+      if (parts.length >= 2) {
+        return parts[parts.length - 2];
+      } else {
+        // Return null or an appropriate value if there's no second to last element
+        return null;
+      }
+    }
+
+    function cleanUrl(url) {
+      // This regex matches "http://", "https://", and "www." at the beginning of the string
+      const pattern = /^(https?:\/\/)?(www\.)?/;
+      return url.replace(pattern, "");
+    }
+
+    function detectOASVersion(oas) {
+      if (oas.openapi) {
+        const majorVersion = parseInt(oas.openapi.charAt(0));
+        if (majorVersion === 3) {
+          return "openapi_3";
+        }
+        // Add more conditions here if OpenAPI releases a version 4 or later.
+      } else if (oas.swagger) {
+        const majorVersion = parseInt(oas.swagger.charAt(0));
+        if (majorVersion === 2) {
+          return "swagger_2";
+        } else if (majorVersion === 1) {
+          // Assuming there's a need to specifically identify Swagger version 1.x
+          return "swagger_1";
+        }
+      }
+      return "unknown";
+    }
+
+    function isJsonString(str) {
+      try {
+        JSON.parse(str);
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    let hostdomain;
+
+    if (!req.body.oas) {
+      oas = new OAS({
+        openapi: "3.0.1",
+        info: {
+          title: "Minimal API",
+          version: "1.0.0",
+        },
+        servers: [{ url: req.body.hostname }],
+        paths: {},
+      });
+
+      oasJsonFinal = {
+        openapi: "3.0.1",
+        info: {
+          title: "Minimal API",
+          version: "1.0.0",
+        },
+        servers: [{ url: req.body.hostname }],
+        paths: {},
+      };
+
+      hostdomain = getSecondToLastElement(req.body.hostname);
+    } else {
+      let oasData = req.body.oas;
+      if (typeof oasData === "string" && !isJsonString(oasData)) {
+        try {
+          // If oasData is a YAML string, parse it to a JS object
+          oasData = yaml.load(oasData);
+        } catch (e) {
+          return res
+            .status(400)
+            .send("Invalid OAS format: Please provide valid JSON or YAML.");
+        }
+      }
+
+      // At this point, oasData is a JavaScript object (either from JSON or converted from YAML)
+      // Convert it back to JSON string if you need to manipulate or store it as JSON
+      const oasJson = oasData;
+
+      const oasversion = detectOASVersion(oasJson);
+      if (oasversion == "unknown") throw { error: "unknown oas", oas: oasJson };
+      if (oasversion != "openapi_3") {
+        Converter.convert(
+          {
+            from: oasversion,
+            to: "openapi_3",
+            source: oasJson,
+          },
+          function (err, converted) {
+            oas = new OAS(converted);
+            hostdomain = getSecondToLastElement(converted.servers[0].url);
+
+            oasJsonFinal = converted;
+
+            // For yaml and/or OpenApi field order output replace above line
+            // with an options object like below
+            //   var  options = {syntax: 'yaml', order: 'openapi'}
+            //   console.log(converted.stringify(options));
+          }
+        );
+      } else {
+        oas = new OAS(oasJson);
+        oasJsonFinal = oasJson;
+
+        hostdomain = getSecondToLastElement(oasJson.servers[0].url);
+      }
+    }
+
+    const oasSave = await oas.save();
+
+    const dns = new DNS({
+      sera_config: {
+        domain: "local.sera",
+        expires: null,
+        sub_domain: hostdomain.substring(0, 8),
+        obfuscated: null,
+      },
+    });
+
+    const dnsSave = await dns.save();
+
+    const data = new Hosts({
+      oas_spec: oasSave._id,
+      sera_dns: dnsSave._id,
+      frwd_config: {
+        host: req.body.hostname,
+        port: req.body.port || 80,
+      },
+      sera_config: {
+        strict: false,
+        learn: true,
+        https: true,
+      },
+      hostname: cleanUrl(oasJsonFinal.servers[0].url),
+    });
+
+    try {
+      const dataToSave = await data.save();
+      res.status(200).json(dataToSave);
+    } catch (error) {
+      res.status(400).json({ message: error.message });
+    }
+  } catch (e) {
+    console.warn(e);
   }
 });
 
