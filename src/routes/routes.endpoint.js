@@ -41,6 +41,36 @@ router.get("/", async (req, res) => {
   }
 });
 
+router.post("/", async (req, res) => {
+  try {
+    console.log(req)
+    console.log(req.body)
+    const data1 = await Hosts.find({ hostname: req.body.hostname });
+
+    let host_id = data1[0]._id;
+
+    const data = new Endpoints({
+      host_id: host_id,
+      builder_id: req.body.builder_id ?? null,
+      endpoint: req.body.endpoint,
+      method: req.body.method,
+      sera_config: {
+        debug: true,
+        rely: false,
+      },
+    });
+
+    try {
+      const dataToSave = await data.save();
+      res.status(200).json(dataToSave);
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 router.get("/builder", async (req, res) => {
   let endpoint;
   let parameters = {};
@@ -58,7 +88,7 @@ router.get("/builder", async (req, res) => {
       const oasUrl = `${parsed.protocol}//${parsed.host}`;
 
       const lastSlashIndex = parsed.pathname.lastIndexOf("/");
-      const path = parsed.pathname.substring(0, lastSlashIndex); // "boop/boop"
+      const path = decodeURIComponent(parsed.pathname.substring(0, lastSlashIndex)); // "boop/boop"
       const method = parsed.pathname
         .substring(lastSlashIndex + 1)
         .toUpperCase(); // "boop"
@@ -81,7 +111,7 @@ router.get("/builder", async (req, res) => {
       )[0];
       if (!mongoEndpoint) throw { error: "NoEndpoint", host: host._id };
 
-      const { _id: removedId, ...parseableOas } = oas;
+      const { ...parseableOas } = oas;
 
       try {
         const api = await SwaggerParser.parse(parseableOas);
@@ -136,35 +166,6 @@ router.get("/builder", async (req, res) => {
         res.status(500).json({ message: error.message });
         break;
     }
-  }
-});
-
-
-router.post("/", async (req, res) => {
-  try {
-    const data1 = await Hosts.find({ hostname: req.body.hostname });
-
-    let host_id = data1[0]._id;
-
-    const data = new Endpoints({
-      host_id: host_id,
-      builder_id: req.body.builder_id ?? null,
-      endpoint: req.body.endpoint,
-      method: req.body.method,
-      sera_config: {
-        debug: true,
-        rely: false,
-      },
-    });
-
-    try {
-      const dataToSave = await data.save();
-      res.status(200).json(dataToSave);
-    } catch (error) {
-      res.status(500).json({ message: error.message });
-    }
-  } catch (error) {
-    res.status(500).json({ message: error.message });
   }
 });
 
@@ -399,8 +400,10 @@ async function getBuilder(builderId, parameters, response, event = false) {
     }).lean()
   ).map((edge) => ({
     ...edge,
-    id: edge._id,
+    id: edge._id.toString(),
   }));
+
+  console.log(edges)
   // nodes and edges now contain the documents corresponding to the IDs in builder_inventory
   return { nodes, edges };
 }

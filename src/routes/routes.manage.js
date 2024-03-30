@@ -112,6 +112,8 @@ router.post("/builder/create", async (req, res) => {
     const resFields = parameters[2];
     const template = (await Builder.find({ template: true }))[0]._doc;
 
+    console.log(parameters);
+
     let editTemplate = JSON.stringify(template);
 
     const gen1 = generateRandomString();
@@ -139,13 +141,11 @@ router.post("/builder/create", async (req, res) => {
           sourceHandle: `flow-source-${gen1}-(${f.name})`,
           target: gen2,
           targetHandle: `flow-target-${gen2}-(${f.name})`,
-          type: "param",
           id: `${gen1}-${gen2}-${f.name}-${generateRandomString()}`,
           animated: false,
           style: {
             stroke: getColor(f.schema["type"]),
           },
-          selected: false,
         };
 
         finalizedTemplate.edges.push(databayoo);
@@ -161,13 +161,11 @@ router.post("/builder/create", async (req, res) => {
           targetHandle: `flow-target-${gen4}-${
             f.schema["type"] == "null" ? `start` : `(${f.name})`
           }`,
-          type: "param",
           id: `${gen3}-${gen4}-${f.name}-${generateRandomString()}`,
           animated: f.schema["type"] == "null" ? true : false,
           style: {
             stroke: getColor(f.schema["type"]),
           },
-          selected: false,
         };
 
         finalizedTemplate.edges.push(databayoo2);
@@ -198,6 +196,7 @@ router.post("/builder/create", async (req, res) => {
     const data = new Builder({
       edges,
       nodes,
+      enabled: true,
     });
 
     try {
@@ -363,18 +362,35 @@ async function getFields(req) {
     const { _id: removedId, ...parseableOas } = oas;
 
     const splitPath = parsed.pathname.split("/").slice(1);
-    const oasPathways = splitPath.map((path, index) => {
-      return index === splitPath.length - 1 ? path : "/" + path;
-    });
+    // Example splitPath array
 
+    // Separate the array into two parts: all elements except the last, and the last element
+    const pathWithoutLast = splitPath.slice(0, -1); // This removes the last element
+    const lastElement = splitPath[splitPath.length - 1]; // This gets the last element
+
+    // Decode URI components and join the first part with "/", adding the last element back
+    const combinedPath =
+      "/" + pathWithoutLast.map(decodeURIComponent).join("/");
+    const oasPathways = [combinedPath, decodeURIComponent(lastElement)];
+
+    // Resulting oasPathways will be: [ '/items/{itemId}', 'get' ]
+
+    console.log(oasPathways);
+    console.log(req.body.path);
     const pathwayData = getDataFromPath(oasPathways, oas.paths);
 
     const lastSlashIndex = parsed.pathname.lastIndexOf("/");
-    const path = parsed.pathname.substring(0, lastSlashIndex); // "boop/boop"
+    const path = decodeURIComponent(
+      parsed.pathname.substring(0, lastSlashIndex)
+    ); // "boop/boop"
     const method = parsed.pathname.substring(lastSlashIndex + 1).toUpperCase(); // "boop"
 
     if (pathwayData) {
       const api = await SwaggerParser.parse(parseableOas);
+      console.log(api);
+      console.log(api.paths);
+      console.log(api.paths[path]);
+      console.log(path);
       let endpoint = api.paths[path][method.toLocaleLowerCase()];
       const response = getResponseParameters(endpoint, oas);
       const parameters = getRequestParameters(endpoint, oas);
