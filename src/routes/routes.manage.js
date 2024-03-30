@@ -19,15 +19,60 @@ const {
 
 //Post Method
 router.post("/host", async (req, res) => {
+  function getSecondToLastElement(hostname) {
+    const parts = hostname.split(".");
+    // Ensure there are at least two parts to return the second to last one
+    if (parts.length >= 2) {
+      return parts[parts.length - 2];
+    } else {
+      // Return null or an appropriate value if there's no second to last element
+      return null;
+    }
+  }
+
+  function cleanUrl(url) {
+    // This regex matches "http://", "https://", and "www." at the beginning of the string
+    const pattern = /^(https?:\/\/)?(www\.)?/;
+    return url.replace(pattern, "");
+  }
+
+  const hostdomain = getSecondToLastElement(req.body.hostname);
+
+  const oas = new OAS({
+    openapi: "3.0.1",
+    info: {
+      title: "Minimal API",
+      version: "1.0.0",
+    },
+    servers: [{ url: req.body.hostname }],
+    paths: {},
+  });
+  const oasSave = await oas.save();
+
+  const dns = new DNS({
+    sera_config: {
+      domain: "local.sera",
+      expires: null,
+      sub_domain: hostdomain.substring(0, 8),
+      obfuscated: null,
+    },
+  });
+
+  const dnsSave = await dns.save();
+
   const data = new Hosts({
+    oas_spec: oasSave._id,
+    sera_dns: dnsSave._id,
     frwd_config: {
-      hostname: req.body.hostname,
-      port: req.body.port,
+      host: req.body.hostname,
+      port: req.body.port || 80,
     },
     sera_config: {
       strict: false,
       learn: true,
+      https: true,
     },
+    hostname: cleanUrl(req.body.hostname),
   });
 
   try {
@@ -44,10 +89,12 @@ router.get("/host", async (req, res) => {
     // Check if the "id" parameter is provided in the query string
     if (req.query.id) {
       // Fetch the specific record by ID
-      node_data = await Hosts.find({ _id: req.query.id });
+      node_data = await Hosts.find({ _id: req.query.id }).populate([
+        "oas_spec",
+      ]);
     } else {
       // Fetch all records, limited to 100
-      node_data = await Hosts.find().limit(100);
+      node_data = await Hosts.find().populate(["oas_spec"]).limit(100);
     }
     console.log(node_data);
     res.send(node_data);

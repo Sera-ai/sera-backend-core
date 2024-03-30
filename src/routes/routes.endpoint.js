@@ -43,8 +43,8 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    console.log(req)
-    console.log(req.body)
+    console.log(req);
+    console.log(req.body);
     const data1 = await Hosts.find({ hostname: req.body.hostname });
 
     let host_id = data1[0]._id;
@@ -88,7 +88,9 @@ router.get("/builder", async (req, res) => {
       const oasUrl = `${parsed.protocol}//${parsed.host}`;
 
       const lastSlashIndex = parsed.pathname.lastIndexOf("/");
-      const path = decodeURIComponent(parsed.pathname.substring(0, lastSlashIndex)); // "boop/boop"
+      const path = decodeURIComponent(
+        parsed.pathname.substring(0, lastSlashIndex)
+      ); // "boop/boop"
       const method = parsed.pathname
         .substring(lastSlashIndex + 1)
         .toUpperCase(); // "boop"
@@ -403,7 +405,7 @@ async function getBuilder(builderId, parameters, response, event = false) {
     id: edge._id.toString(),
   }));
 
-  console.log(edges)
+  console.log(edges);
   // nodes and edges now contain the documents corresponding to the IDs in builder_inventory
   return { nodes, edges };
 }

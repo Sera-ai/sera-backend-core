@@ -1,18 +1,18 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
-const dataSchema = new mongoose.Schema({
-    host: {
-        required: true,
-        type: String
+const dataSchema = new mongoose.Schema(
+  {
+    servers: {
+      required: true,
+      type: Array,
     },
     paths: {
-        required: true,
-        type: Object
+      required: true,
+      type: Object,
+      default: {}, // Set an empty object as the default value
     },
-    definitions: {
-        required: true,
-        type: Object
-    }
-}, { collection: "oas_inventory" })
+  },
+  { collection: "oas_inventory", strict: false }
+);
 
-module.exports = mongoose.model('oas_inventory', dataSchema)
+module.exports = mongoose.model("oas_inventory", dataSchema);

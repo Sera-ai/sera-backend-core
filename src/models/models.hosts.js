@@ -20,6 +20,10 @@ const dataSchema = new mongoose.Schema(
       required: true,
       type: Object,
     },
+    hostname: {
+      required: true,
+      type: String,
+    },
   },
   { collection: "sera_hosts" }
 );
