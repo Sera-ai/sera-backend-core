@@ -139,11 +139,10 @@ router.get("/builder", async (req, res) => {
   }
 });
 
-router.get("/builder", async (req, res) => {});
 
-router.post("/create", async (req, res) => {
+router.post("/", async (req, res) => {
   try {
-    const data1 = await Hosts.find({ forwards: req.body.hostname });
+    const data1 = await Hosts.find({ hostname: req.body.hostname });
 
     let host_id = data1[0]._id;
 

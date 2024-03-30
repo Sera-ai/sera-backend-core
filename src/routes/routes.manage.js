@@ -373,7 +373,7 @@ async function getFields(req) {
     const path = parsed.pathname.substring(0, lastSlashIndex); // "boop/boop"
     const method = parsed.pathname.substring(lastSlashIndex + 1).toUpperCase(); // "boop"
 
-    if (method === "POST" && pathwayData) {
+    if (pathwayData) {
       const api = await SwaggerParser.parse(parseableOas);
       let endpoint = api.paths[path][method.toLocaleLowerCase()];
       const response = getResponseParameters(endpoint, oas);
