@@ -1,4 +1,6 @@
 const express = require("express");
+const https = require("https");
+const axios = require("axios");
 
 const Hosts = require("../models/models.hosts");
 const OAS = require("../models/models.oas");
@@ -23,7 +25,6 @@ const {
 router.post("/host", async (req, res) => {
   let oas;
   let oasJsonFinal = {};
-  let hostname = req.body.hostname;
   try {
     function getSecondToLastElement(hostname) {
       const parts = hostname.split(".");
@@ -141,12 +142,12 @@ router.post("/host", async (req, res) => {
     }
 
     const oasSave = await oas.save();
-
+    const subdo = `${hostdomain.substring(0, 40)}-${generateRandomString(6)}`;
     const dns = new DNS({
       sera_config: {
         domain: "local.sera",
         expires: null,
-        sub_domain: hostdomain.substring(0, 8),
+        sub_domain: cleanUrl(subdo),
         obfuscated: null,
       },
     });
@@ -157,7 +158,7 @@ router.post("/host", async (req, res) => {
       oas_spec: oasSave._id,
       sera_dns: dnsSave._id,
       frwd_config: {
-        host: req.body.hostname,
+        host: cleanUrl(hostdomain),
         port: req.body.port || 80,
       },
       sera_config: {
@@ -167,6 +168,22 @@ router.post("/host", async (req, res) => {
       },
       hostname: cleanUrl(oasJsonFinal.servers[0].url),
     });
+
+    const agent = new https.Agent({
+      rejectUnauthorized: false,
+    });
+
+    axios.post(
+      "https://dns.sera:12000/dns",
+      { host: cleanUrl(subdo) + ".sera", ip: "127.0.0.1" },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "x-sera-service": "be_Dns",
+        },
+        httpsAgent: agent,
+      }
+    );
 
     try {
       const dataToSave = await data.save();
@@ -199,6 +216,37 @@ router.get("/host", async (req, res) => {
   }
 });
 
+router.patch("/host", async (req, res) => {
+  try {
+    // Ensure there is data to update with and an ID is provided
+    console.log(req.body);
+    if (!req.body.host_id) {
+      return res
+        .status(400)
+        .json({ message: "Missing data for update or host ID." });
+    }
+
+    let field = req.body.field;
+
+    let updateObject = { $set: {} };
+    updateObject.$set[`sera_config.${field}`] = req.body.key;
+
+    const updatedHost = await Hosts.findByIdAndUpdate(
+      req.body.host_id, // find a document by ID
+      updateObject,
+      { new: true } // Options to return the document after update
+    );
+
+    if (!updatedHost) {
+      return res.status(404).json({ message: "Host not found." });
+    }
+
+    res.send(updatedHost);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 router.get("/host/oas", async (req, res) => {
   try {
     let node_data;
@@ -210,7 +258,9 @@ router.get("/host/oas", async (req, res) => {
 
       res.send(oas_data);
     } else {
-      res.status(500).json({ message: "no host provided" });
+      oas_data = await OAS.find();
+
+      res.send(oas_data);
     }
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -250,12 +300,26 @@ router.post("/node/create", async (req, res) => {
 router.post("/builder/create", async (req, res) => {
   //Why do I make two ID's? _id is created by mongo, and this generator makes id. react flow requires an "id" property and using the template style I did below makes it kind of hard to link _id into id
   try {
-    const parameters = await getFields(req);
+    console.log(req.body);
+    const host = await Hosts.findById(req.body.host_id);
+    const parameters = await getFields({
+      req,
+      hostname: host.hostname,
+      oas_id: host.oas_spec,
+    });
+    console.log(parameters);
+
     const fields = parameters[0];
     const resFields = parameters[2];
-    const template = (await Builder.find({ template: true }))[0]._doc;
+    const template = await Builder.findOne({ template: true });
+    console.log(template);
 
-    console.log(parameters);
+    const truepath = (req.body.hostname + req.body.path).replace(
+      host.hostname,
+      ""
+    );
+
+    console.log("hmm", req.body.hostname + req.body.path);
 
     let editTemplate = JSON.stringify(template);
 
@@ -264,9 +328,9 @@ router.post("/builder/create", async (req, res) => {
     const gen3 = generateRandomString();
     const gen4 = generateRandomString();
 
-    editTemplate = editTemplate.replace(/{{host}}/g, req.body.hostname);
+    editTemplate = editTemplate.replace(/{{host}}/g, host.hostname);
     editTemplate = editTemplate.replace(/{{method}}/g, req.body.method);
-    editTemplate = editTemplate.replace(/{{path}}/g, req.body.path);
+    editTemplate = editTemplate.replace(/{{path}}/g, truepath);
 
     editTemplate = editTemplate.replace(/{{gen-1}}/g, gen1);
     editTemplate = editTemplate.replace(/{{gen-2}}/g, gen2);
@@ -476,33 +540,29 @@ function getDataFromPath(arr, obj) {
   return currentObj; // Return the data from the last key in the array
 }
 
-function generateRandomString() {
-  const chars =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+function generateRandomString(length = 12) {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
   let result = "";
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < length; i++) {
     const randomIndex = Math.floor(Math.random() * chars.length);
     result += chars[randomIndex];
   }
   return result;
 }
 
-async function getFields(req) {
+async function getFields({ req, hostname, oas_id }) {
   try {
+    console.log("url");
+
     const url =
       "http://" +
       req.body.hostname +
-      req.body.path +
+      (req.body.hostname + req.body.path).replace(hostname, "") +
       "/" +
       req.body.method.toLowerCase();
     console.log(url);
     const parsed = new URL(url);
-    const oasUrl = `${parsed.protocol}//${parsed.host}`;
-    const oas = (
-      await OAS.findOne({ servers: { $elemMatch: { url: oasUrl } } })
-    ).toObject();
-
-    const { _id: removedId, ...parseableOas } = oas;
+    const oas = await OAS.findById(oas_id);
 
     const splitPath = parsed.pathname.split("/").slice(1);
     // Example splitPath array
@@ -519,7 +579,7 @@ async function getFields(req) {
     // Resulting oasPathways will be: [ '/items/{itemId}', 'get' ]
 
     console.log(oasPathways);
-    console.log(req.body.path);
+
     const pathwayData = getDataFromPath(oasPathways, oas.paths);
 
     const lastSlashIndex = parsed.pathname.lastIndexOf("/");
@@ -529,12 +589,11 @@ async function getFields(req) {
     const method = parsed.pathname.substring(lastSlashIndex + 1).toUpperCase(); // "boop"
 
     if (pathwayData) {
-      const api = await SwaggerParser.parse(parseableOas);
-      console.log(api);
-      console.log(api.paths);
+      const api = await SwaggerParser.parse(oas);
       console.log(api.paths[path]);
       console.log(path);
       let endpoint = api.paths[path][method.toLocaleLowerCase()];
+      console.log(endpoint);
       const response = getResponseParameters(endpoint, oas);
       const parameters = getRequestParameters(endpoint, oas);
       return [parameters, method, response];

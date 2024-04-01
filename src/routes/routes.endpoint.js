@@ -43,16 +43,24 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    console.log(req);
     console.log(req.body);
-    const data1 = await Hosts.find({ hostname: req.body.hostname });
 
-    let host_id = data1[0]._id;
+    const data1 = await Hosts.findById(req.body.host_id);
+    console.log("data1", data1);
+
+    const truepath = (req.body.hostname + req.body.endpoint).replace(
+      data1.hostname,
+      ""
+    );
+
+    console.log("truepath", truepath);
+
+    let host_id = data1._id;
 
     const data = new Endpoints({
       host_id: host_id,
       builder_id: req.body.builder_id ?? null,
-      endpoint: req.body.endpoint,
+      endpoint: truepath,
       method: req.body.method,
       sera_config: {
         debug: true,
@@ -82,7 +90,7 @@ router.get("/builder", async (req, res) => {
 
   try {
     if (req.query.path) {
-      const url = "http:/" + req.query.path;
+      const url = "http:/" + decodeURIComponent(req.query.path);
       console.log(url);
       const parsed = new URL(url);
       const oasUrl = `${parsed.protocol}//${parsed.host}`;
@@ -94,31 +102,83 @@ router.get("/builder", async (req, res) => {
       const method = parsed.pathname
         .substring(lastSlashIndex + 1)
         .toUpperCase(); // "boop"
-      oas = (
-        await OAS.findOne({ servers: { $elemMatch: { url: oasUrl } } })
-      ).toObject();
 
-      console.log(parsed.host.split(":")[0]);
-      host = (
-        await Hosts.find({ "frwd_config.host": parsed.host.split(":")[0] })
-      )[0];
+      const substringToMatch = parsed.host.split(":")[0];
+
+      const matchingOas = await OAS.find({
+        "servers.url": { $regex: substringToMatch },
+      });
+
+      // Assuming substringToMatch would be something like "reqres.in"
+      const matchingHosts = await Hosts.find({
+        hostname: { $regex: substringToMatch },
+      });
+
+      // Remove protocol and extract only the domain and path without query parameters
+      const normalizedUrl = url.replace(/^https?:\/\//, "").split("?")[0];
+
+      let bestMatch = null;
+      let bestMatchLength = 0;
+      let bestMatchLength2 = 0;
+
+      console.log(matchingOas);
+
+      matchingOas.forEach((searchedOas) => {
+        searchedOas.servers.forEach((server) => {
+          // Normalize server URL for comparison
+          const serverUrlNormalized = server.url
+            .replace(/^https?:\/\//, "")
+
+          console.log(serverUrlNormalized);
+          console.log(normalizedUrl);
+
+          // Check if the domain of the server URL matches the start of the normalized URL
+          if (normalizedUrl.startsWith(serverUrlNormalized)) {
+            const matchLength = serverUrlNormalized.length;
+            if (matchLength > bestMatchLength2) {
+              oas = searchedOas;
+              console.log("Set oas");
+              bestMatchLength2 = matchLength;
+            }
+          }
+        });
+      });
+
+      console.log(oas);
+
+      matchingHosts.forEach((host) => {
+        // Check how much of the start of the normalized URL is matched by the hostname
+        if (normalizedUrl.startsWith(host.hostname)) {
+          const matchLength = host.hostname.length;
+          if (matchLength > bestMatchLength) {
+            bestMatch = host;
+            bestMatchLength = matchLength;
+          }
+        }
+      });
+
+      host = bestMatch;
       if (!host) throw { error: "NoHost" };
 
-      mongoEndpoint = (
-        await Endpoints.find({
-          host_id: host._id,
-          endpoint: path,
-          method: method,
-        })
-      )[0];
+      console.log(host);
+      console.log(path);
+
+      const truepath = (parsed.host + path).replace(host.hostname, "");
+
+      mongoEndpoint = await Endpoints.findOne({
+        host_id: host._id,
+        endpoint: truepath,
+        method: method,
+      });
       if (!mongoEndpoint) throw { error: "NoEndpoint", host: host._id };
 
       const { ...parseableOas } = oas;
 
       try {
-        const api = await SwaggerParser.parse(parseableOas);
+        const api = await SwaggerParser.parse(oas);
 
-        endpoint = api.paths[path][method.toLocaleLowerCase()];
+        console.log(api.paths);
+        endpoint = api.paths[truepath][method.toLocaleLowerCase()];
 
         parameters = getRequestParameters(endpoint, api);
         response = getResponseParameters(endpoint, api);
@@ -127,7 +187,7 @@ router.get("/builder", async (req, res) => {
 
         // For demonstration, accessing response headers of the first response code
         responseCodes = Object.keys(
-          api.paths[path][method.toLocaleLowerCase()].responses
+          api.paths[truepath][method.toLocaleLowerCase()].responses
         );
       } catch (error) {
         console.error("Error parsing OAS document:", error);
@@ -361,7 +421,6 @@ async function getBuilder(builderId, parameters, response, event = false) {
   const inventoryRes = event
     ? await EventBuilder.findOne({ slug: builderId })
     : await Builder.findById(builderId);
-  console.log(inventoryRes);
 
   if (!inventoryRes) {
     console.log("Builder inventory not found");
@@ -405,7 +464,6 @@ async function getBuilder(builderId, parameters, response, event = false) {
     id: edge._id.toString(),
   }));
 
-  console.log(edges);
   // nodes and edges now contain the documents corresponding to the IDs in builder_inventory
   return { nodes, edges };
 }
