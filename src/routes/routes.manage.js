@@ -209,7 +209,6 @@ router.get("/host", async (req, res) => {
       // Fetch all records, limited to 100
       node_data = await Hosts.find().populate(["oas_spec"]).limit(100);
     }
-    console.log(node_data);
     res.send(node_data);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -219,7 +218,6 @@ router.get("/host", async (req, res) => {
 router.patch("/host", async (req, res) => {
   try {
     // Ensure there is data to update with and an ID is provided
-    console.log(req.body);
     if (!req.body.host_id) {
       return res
         .status(400)
@@ -285,41 +283,24 @@ router.get("/host/dns", async (req, res) => {
   }
 });
 
-router.post("/node/create", async (req, res) => {
-  const data = new Nodes();
-
-  try {
-    const dataToSave = await data.save();
-    console.log(dataToSave);
-    res.status(200).json(dataToSave);
-  } catch (error) {
-    res.status(400).json({ message: error.message });
-  }
-});
-
 router.post("/builder/create", async (req, res) => {
   //Why do I make two ID's? _id is created by mongo, and this generator makes id. react flow requires an "id" property and using the template style I did below makes it kind of hard to link _id into id
   try {
-    console.log(req.body);
     const host = await Hosts.findById(req.body.host_id);
     const parameters = await getFields({
       req,
       hostname: host.hostname,
       oas_id: host.oas_spec,
     });
-    console.log(parameters);
 
     const fields = parameters[0];
     const resFields = parameters[2];
     const template = await Builder.findOne({ template: true });
-    console.log(template);
 
     const truepath = (req.body.hostname + req.body.path).replace(
       host.hostname,
       ""
     );
-
-    console.log("hmm", req.body.hostname + req.body.path);
 
     let editTemplate = JSON.stringify(template);
 
@@ -502,7 +483,6 @@ router.get("/info", async (req, res) => {
 router.get("/getNode", async (req, res) => {
   try {
     const node_data = await Nodes.findById(req.query.id);
-    console.log(node_data);
     res.send(node_data);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -511,11 +491,15 @@ router.get("/getNode", async (req, res) => {
 
 router.get("/getNodeStruc", async (req, res) => {
   try {
-    const node_data = await EventStruc.findOne({
-      type: req.query.type,
-      event: req.query.event,
-    });
-    res.send(node_data);
+    const query = { event: req.query.event };
+    if (req.query.type) {
+      query.type = req.query.type;
+      const node_data = await EventStruc.findOne(query);
+      res.send(node_data);
+    } else {
+      const node_data = await EventStruc.find(query);
+      res.send(node_data);
+    }
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -550,15 +534,12 @@ function generateRandomString(length = 12) {
 
 async function getFields({ req, hostname, oas_id }) {
   try {
-    console.log("url");
-
     const url =
       "http://" +
       req.body.hostname +
       (req.body.hostname + req.body.path).replace(hostname, "") +
       "/" +
       req.body.method.toLowerCase();
-    console.log(url);
     const parsed = new URL(url);
     const oas = await OAS.findById(oas_id);
 
@@ -576,8 +557,6 @@ async function getFields({ req, hostname, oas_id }) {
 
     // Resulting oasPathways will be: [ '/items/{itemId}', 'get' ]
 
-    console.log(oasPathways);
-
     const pathwayData = getDataFromPath(oasPathways, oas.paths);
 
     const lastSlashIndex = parsed.pathname.lastIndexOf("/");
@@ -588,10 +567,8 @@ async function getFields({ req, hostname, oas_id }) {
 
     if (pathwayData) {
       const api = await SwaggerParser.parse(oas);
-      console.log(api.paths[path]);
-      console.log(path);
+
       let endpoint = api.paths[path][method.toLocaleLowerCase()];
-      console.log(endpoint);
       const response = getResponseParameters(endpoint, oas);
       const parameters = getRequestParameters(endpoint, oas);
       return [parameters, method, response];

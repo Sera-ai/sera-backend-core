@@ -14,6 +14,10 @@ const dataSchema = new mongoose.Schema(
       required: true,
       type: Object,
     },
+    description: {
+      required: false,
+      type: String,
+    },
   },
   { collection: "event_struc" }
 );

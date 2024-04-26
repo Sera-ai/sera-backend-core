@@ -14,6 +14,18 @@ const dataSchema = new mongoose.Schema(
       required: true,
       type: String,
     },
+    enabled: {
+      required: true,
+      type: Boolean,
+    },
+    name: {
+      required: true,
+      type: String,
+    },
+    type: {
+      required: true,
+      type: String,
+    },
   },
   { collection: "builder_events" }
 );

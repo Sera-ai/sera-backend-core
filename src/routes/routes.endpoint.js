@@ -5,6 +5,7 @@ const Hosts = require("../models/models.hosts");
 const OAS = require("../models/models.oas");
 const Builder = require("../models/models.builder");
 const EventBuilder = require("../models/models.eventBuilder");
+const EventStruct = require("../models/models.eventStruc");
 const Nodes = require("../models/models.nodes");
 const Edges = require("../models/models.edges");
 const Endpoints = require("../models/models.endpoints");
@@ -34,7 +35,6 @@ router.get("/", async (req, res) => {
         .populate(["host_id", "builder_id"])
         .limit(100);
     }
-    console.log(node_data);
     res.send(node_data);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -43,17 +43,11 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    console.log(req.body);
-
     const data1 = await Hosts.findById(req.body.host_id);
-    console.log("data1", data1);
-
     const truepath = (req.body.hostname + req.body.endpoint).replace(
       data1.hostname,
       ""
     );
-
-    console.log("truepath", truepath);
 
     let host_id = data1._id;
 
@@ -91,7 +85,6 @@ router.get("/builder", async (req, res) => {
   try {
     if (req.query.path) {
       const url = "http:/" + decodeURIComponent(req.query.path);
-      console.log(url);
       const parsed = new URL(url);
       const oasUrl = `${parsed.protocol}//${parsed.host}`;
 
@@ -121,29 +114,21 @@ router.get("/builder", async (req, res) => {
       let bestMatchLength = 0;
       let bestMatchLength2 = 0;
 
-      console.log(matchingOas);
-
       matchingOas.forEach((searchedOas) => {
         searchedOas.servers.forEach((server) => {
           // Normalize server URL for comparison
           const serverUrlNormalized = server.url.replace(/^https?:\/\//, "");
-
-          console.log(serverUrlNormalized);
-          console.log(normalizedUrl);
 
           // Check if the domain of the server URL matches the start of the normalized URL
           if (normalizedUrl.startsWith(serverUrlNormalized)) {
             const matchLength = serverUrlNormalized.length;
             if (matchLength > bestMatchLength2) {
               oas = searchedOas;
-              console.log("Set oas");
               bestMatchLength2 = matchLength;
             }
           }
         });
       });
-
-      console.log(oas);
 
       matchingHosts.forEach((host) => {
         // Check how much of the start of the normalized URL is matched by the hostname
@@ -159,9 +144,6 @@ router.get("/builder", async (req, res) => {
       host = bestMatch;
       if (!host) throw { error: "NoHost" };
 
-      console.log(host);
-      console.log(path);
-
       const truepath = (parsed.host + path).replace(host.hostname, "");
 
       mongoEndpoint = await Endpoints.findOne({
@@ -176,7 +158,6 @@ router.get("/builder", async (req, res) => {
       try {
         const api = await SwaggerParser.parse(oas);
 
-        console.log(api.paths);
         endpoint = api.paths[truepath][method.toLocaleLowerCase()];
 
         parameters = getRequestParameters(endpoint, api);
@@ -255,11 +236,25 @@ router.post("/update", async (req, res) => {
 
 router.post("/node", async (req, res) => {
   const builderId = req.get("x-sera-builder");
+  console.log(builderId);
 
   if (builderId) {
     try {
-      console.log(req.body);
-      const nodedata = new Nodes(req.body);
+      let nodeDataToBeSaved = req.body;
+
+      if (nodeDataToBeSaved.type == "sendEventNode") {
+        const struct = new EventStruct({
+          event: "builder-default",
+          type: "new Event",
+          description: "new event",
+          data: {},
+        });
+        const sendEventNodeId = await struct.save();
+
+        nodeDataToBeSaved.data.struc_id = sendEventNodeId._id;
+      }
+
+      const nodedata = new Nodes(nodeDataToBeSaved);
       const savedData = await nodedata.save();
 
       if (req.path.type == "builder") {
@@ -288,14 +283,6 @@ router.post("/node", async (req, res) => {
           });
         });
       }
-
-      Builder.findByIdAndUpdate(builderId, {
-        $push: { nodes: new mongoose.Types.ObjectId(savedData._id) },
-      }).then((e) => {
-        //create socket interaction
-        //socket.broadcast.to(builder).emit("nodeCreate", { newNode: savedData });
-        req.socket.emit("nodeCreated", { node: savedData, builder: builderId });
-      });
       res.status(200);
     } catch (error) {
       res.status(500).json({ message: error.message });
@@ -306,7 +293,6 @@ router.post("/node", async (req, res) => {
 router.delete("/node", async (req, res) => {
   const builderId = req.get("x-sera-builder");
   const nodeId = req.body[0]._id;
-  console.log(req.body);
   if (!builderId || !nodeId) {
     return res.status(500).json({ message: "Missing builder ID or node ID" });
   }
@@ -318,9 +304,27 @@ router.delete("/node", async (req, res) => {
       return res.status(404).json({ message: "Node not found" });
     }
 
-    await Builder.findByIdAndUpdate(builderId, {
-      $pull: { nodes: deletedNode._id },
-    });
+    if (deletedNode.type == "sendEventNode") {
+      const deletedENode = await EventStruct.findByIdAndDelete(
+        new mongoose.Types.ObjectId(deletedNode.data.struc_id)
+      );
+    }
+
+    if (
+      deletedNode.type == "sendEventNode" ||
+      deletedNode.type == "eventNode"
+    ) {
+      await EventBuilder.findOneAndUpdate(
+        { slug: builderId },
+        {
+          $pull: { nodes: deletedNode._id },
+        }
+      );
+    } else {
+      await Builder.findByIdAndUpdate(builderId, {
+        $pull: { nodes: deletedNode._id },
+      });
+    }
 
     req.socket.emit("nodeDeleted", {
       node: req.body,
@@ -338,44 +342,68 @@ router.post("/edge", async (req, res) => {
   if (builderId) {
     try {
       const edgedata = new Edges(req.body);
-      console.log(req.body);
-      console.log("hmm");
       const savedData = await edgedata.save();
-
-      console.log(savedData)
 
       // Set the id field to match _id after the initial save
       savedData.id = savedData._id;
       const finalData = await savedData.save();
       const { target, targetHandle } = finalData;
-      // First, find the documents that you want to delete and store them
-      Edges.find({ _id: { $ne: savedData._id }, target, targetHandle })
-        .then((edgesToDelete) => {
-          // Now that you have the documents, you can emit them to the socket
 
-          // Convert fetched documents into an array of their IDs
-          const idsToDelete = edgesToDelete.map((edge) => edge._id);
-          const socketEdgesToDelete = edgesToDelete.map((edge) => ({
-            id: edge._id,
-            type: "remove",
-          }));
+      if (req.body.targetHandle == "seraFunctionEvent")
+        Nodes.findOne({ id: target }).then((node) => {
+          console.log("e", node);
+          const updateKey = `data.${req.body.sourceHandle}`;
 
-          console.log(socketEdgesToDelete);
-          req.socket.emit("edgeDeleted", {
-            edge: socketEdgesToDelete,
-            builder: builderId,
-          });
-
-          // Delete all documents that were fetched
-          return Edges.deleteMany({ _id: { $in: idsToDelete } });
-        })
-        .then((deleteResult) => {
-          // Logging the result of the delete operation
-          console.log(deleteResult);
-        })
-        .catch((error) => {
-          console.error(error);
+          if (node) {
+            console.log(updateKey);
+            EventStruct.findByIdAndUpdate(
+              node.data.struc_id,
+              {
+                $set: {
+                  [updateKey]: "string", // Ensures 'data' exists and adds/updates 'edge.sourceHandle'
+                },
+              },
+              { upsert: true, new: true } // Options to create the document if not exists and return the updated document
+            )
+              .then((deleteResult) => {
+                // Logging the result of the delete operation
+                console.log(deleteResult);
+              })
+              .catch((error) => {
+                console.error(error);
+              });
+          } else {
+            console.log("No corresponding structure found for script id:");
+          }
         });
+
+      if (req.body.targetHandle != "seraFunctionEvent")
+        Edges.find({ _id: { $ne: savedData._id }, target, targetHandle })
+          .then((edgesToDelete) => {
+            // Now that you have the documents, you can emit them to the socket
+
+            // Convert fetched documents into an array of their IDs
+            const idsToDelete = edgesToDelete.map((edge) => edge._id);
+            const socketEdgesToDelete = edgesToDelete.map((edge) => ({
+              id: edge._id,
+              type: "remove",
+            }));
+
+            req.socket.emit("edgeDeleted", {
+              edge: socketEdgesToDelete,
+              builder: builderId,
+            });
+
+            // Delete all documents that were fetched
+            return Edges.deleteMany({ _id: { $in: idsToDelete } });
+          })
+          .then((deleteResult) => {
+            // Logging the result of the delete operation
+            console.log(deleteResult);
+          })
+          .catch((error) => {
+            console.error(error);
+          });
 
       Builder.findByIdAndUpdate(builderId, {
         $push: { edges: new mongoose.Types.ObjectId(finalData._id) },
@@ -397,7 +425,6 @@ router.post("/edge", async (req, res) => {
 router.patch("/edge", async (req, res) => {
   const builderId = req.get("x-sera-builder");
   if (builderId) {
-    console.log(req.body);
     try {
       Edges.findByIdAndUpdate(req.body.id, {
         ...req.body,
@@ -418,7 +445,6 @@ router.patch("/edge", async (req, res) => {
 router.delete("/edge", async (req, res) => {
   const builderId = req.get("x-sera-builder");
   const edgeId = req.body[0].id;
-  console.log(req.body);
   if (!builderId || !edgeId) {
     return res.status(500).json({ message: "Missing builder ID or edge ID" });
   }
@@ -430,11 +456,39 @@ router.delete("/edge", async (req, res) => {
       return res.status(404).json({ message: "Edge not found" });
     }
 
+    if (deletedEdge.targetHandle == "seraFunctionEvent") {
+      Nodes.findOne({ id: deletedEdge.target })
+        .then((node) => {
+          const updateKey = `data.${deletedEdge.sourceHandle}`;
+
+          if (node) {
+            EventStruct.findByIdAndUpdate(
+              node.data.struc_id,
+              {
+                $unset: {
+                  [updateKey]: "", // Removes the specified field
+                },
+              },
+              { new: true } // Returns the updated document
+            )
+              .then((updatedDoc) => {
+                console.log("Updated Document after unset:", updatedDoc);
+              })
+              .catch((err) => {
+                console.error("Error updating document:", err);
+              });
+          } else {
+            console.log("No corresponding structure found for script id:");
+          }
+        })
+        .catch((err) => {
+          console.error("Error fetching node:", err);
+        });
+    }
+
     await Builder.findByIdAndUpdate(builderId, {
       $pull: { edges: deletedEdge._id },
     });
-
-    console.log(req.body);
 
     req.socket.emit("edgeDeleted", {
       edge: req.body,
@@ -442,7 +496,6 @@ router.delete("/edge", async (req, res) => {
     });
     res.status(200).json({ message: "Edge deleted successfully" });
   } catch (error) {
-    console.log(error);
     res.status(500).json({ message: error.message });
   }
 });
