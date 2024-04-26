@@ -345,9 +345,9 @@ router.post("/builder/create", async (req, res) => {
       fields[field].map((f) => {
         const databayoo = {
           source: gen1,
-          sourceHandle: `flow-source-${gen1}-(${f.name})`,
+          sourceHandle: f.name,
           target: gen2,
-          targetHandle: `flow-target-${gen2}-(${f.name})`,
+          targetHandle: f.name,
           id: `${gen1}-${gen2}-${f.name}-${generateRandomString()}`,
           animated: false,
           style: {
@@ -363,11 +363,9 @@ router.post("/builder/create", async (req, res) => {
       resFields[field].map((f) => {
         const databayoo2 = {
           source: gen3,
-          sourceHandle: `flow-source-${gen3}-(${f.name})`,
+          sourceHandle: f.name,
           target: gen4,
-          targetHandle: `flow-target-${gen4}-${
-            f.schema["type"] == "null" ? `start` : `(${f.name})`
-          }`,
+          targetHandle: f.schema["type"] == "null" ? `sera_start` : f.name,
           id: `${gen3}-${gen4}-${f.name}-${generateRandomString()}`,
           animated: f.schema["type"] == "null" ? true : false,
           style: {

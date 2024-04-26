@@ -126,8 +126,7 @@ router.get("/builder", async (req, res) => {
       matchingOas.forEach((searchedOas) => {
         searchedOas.servers.forEach((server) => {
           // Normalize server URL for comparison
-          const serverUrlNormalized = server.url
-            .replace(/^https?:\/\//, "")
+          const serverUrlNormalized = server.url.replace(/^https?:\/\//, "");
 
           console.log(serverUrlNormalized);
           console.log(normalizedUrl);
@@ -339,11 +338,44 @@ router.post("/edge", async (req, res) => {
   if (builderId) {
     try {
       const edgedata = new Edges(req.body);
+      console.log(req.body);
+      console.log("hmm");
       const savedData = await edgedata.save();
+
+      console.log(savedData)
 
       // Set the id field to match _id after the initial save
       savedData.id = savedData._id;
       const finalData = await savedData.save();
+      const { target, targetHandle } = finalData;
+      // First, find the documents that you want to delete and store them
+      Edges.find({ _id: { $ne: savedData._id }, target, targetHandle })
+        .then((edgesToDelete) => {
+          // Now that you have the documents, you can emit them to the socket
+
+          // Convert fetched documents into an array of their IDs
+          const idsToDelete = edgesToDelete.map((edge) => edge._id);
+          const socketEdgesToDelete = edgesToDelete.map((edge) => ({
+            id: edge._id,
+            type: "remove",
+          }));
+
+          console.log(socketEdgesToDelete);
+          req.socket.emit("edgeDeleted", {
+            edge: socketEdgesToDelete,
+            builder: builderId,
+          });
+
+          // Delete all documents that were fetched
+          return Edges.deleteMany({ _id: { $in: idsToDelete } });
+        })
+        .then((deleteResult) => {
+          // Logging the result of the delete operation
+          console.log(deleteResult);
+        })
+        .catch((error) => {
+          console.error(error);
+        });
 
       Builder.findByIdAndUpdate(builderId, {
         $push: { edges: new mongoose.Types.ObjectId(finalData._id) },
@@ -401,6 +433,8 @@ router.delete("/edge", async (req, res) => {
     await Builder.findByIdAndUpdate(builderId, {
       $pull: { edges: deletedEdge._id },
     });
+
+    console.log(req.body);
 
     req.socket.emit("edgeDeleted", {
       edge: req.body,
