@@ -5,6 +5,7 @@ const Hosts = require("../models/models.hosts");
 const OAS = require("../models/models.oas");
 const Builder = require("../models/models.builder");
 const EventBuilder = require("../models/models.eventBuilder");
+const SeraSettings = require("../models/models.sera_settings");
 const EventStruct = require("../models/models.eventStruc");
 const Nodes = require("../models/models.nodes");
 const Edges = require("../models/models.edges");
@@ -236,11 +237,10 @@ router.post("/update", async (req, res) => {
 
 router.post("/node", async (req, res) => {
   const builderId = req.get("x-sera-builder");
-  console.log(builderId);
-
   if (builderId) {
     try {
       let nodeDataToBeSaved = req.body;
+      console.log(nodeDataToBeSaved);
 
       if (nodeDataToBeSaved.type == "sendEventNode") {
         const struct = new EventStruct({
@@ -250,14 +250,15 @@ router.post("/node", async (req, res) => {
           data: {},
         });
         const sendEventNodeId = await struct.save();
-
         nodeDataToBeSaved.data.struc_id = sendEventNodeId._id;
       }
+
+      console.log(nodeDataToBeSaved);
 
       const nodedata = new Nodes(nodeDataToBeSaved);
       const savedData = await nodedata.save();
 
-      if (req.path.type == "builder") {
+      if (req.query.type != "event") {
         Builder.findByIdAndUpdate(builderId, {
           $push: { nodes: new mongoose.Types.ObjectId(savedData._id) },
         }).then((e) => {
@@ -343,11 +344,11 @@ router.post("/edge", async (req, res) => {
     try {
       const edgedata = new Edges(req.body);
       const savedData = await edgedata.save();
-
       // Set the id field to match _id after the initial save
       savedData.id = savedData._id;
       const finalData = await savedData.save();
-      const { target, targetHandle } = finalData;
+
+      const { target, targetHandle, source } = finalData;
 
       if (req.body.targetHandle == "seraFunctionEvent")
         Nodes.findOne({ id: target }).then((node) => {
@@ -378,43 +379,86 @@ router.post("/edge", async (req, res) => {
         });
 
       if (req.body.targetHandle != "seraFunctionEvent")
-        Edges.find({ _id: { $ne: savedData._id }, target, targetHandle })
-          .then((edgesToDelete) => {
-            // Now that you have the documents, you can emit them to the socket
+        if (req.body.targetHandle != "scriptAccept") {
+          Edges.find({ _id: { $ne: savedData._id }, target, targetHandle })
+            .then((edgesToDelete) => {
+              // Now that you have the documents, you can emit them to the socket
 
-            // Convert fetched documents into an array of their IDs
-            const idsToDelete = edgesToDelete.map((edge) => edge._id);
-            const socketEdgesToDelete = edgesToDelete.map((edge) => ({
-              id: edge._id,
-              type: "remove",
-            }));
+              // Convert fetched documents into an array of their IDs
+              const idsToDelete = edgesToDelete.map((edge) => edge._id);
+              const socketEdgesToDelete = edgesToDelete.map((edge) => ({
+                id: edge._id,
+                type: "remove",
+              }));
 
-            req.socket.emit("edgeDeleted", {
-              edge: socketEdgesToDelete,
-              builder: builderId,
+              req.socket.emit("edgeDeleted", {
+                edge: socketEdgesToDelete,
+                builder: builderId,
+              });
+
+              // Delete all documents that were fetched
+              return Edges.deleteMany({ _id: { $in: idsToDelete } });
+            })
+            .then((deleteResult) => {
+              // Logging the result of the delete operation
+              console.log(deleteResult);
+            })
+            .catch((error) => {
+              console.error(error);
             });
+        }
 
-            // Delete all documents that were fetched
-            return Edges.deleteMany({ _id: { $in: idsToDelete } });
-          })
-          .then((deleteResult) => {
-            // Logging the result of the delete operation
-            console.log(deleteResult);
-          })
-          .catch((error) => {
-            console.error(error);
+      if (req.query.type != "event") {
+        Builder.findByIdAndUpdate(builderId, {
+          $push: { edges: new mongoose.Types.ObjectId(finalData._id) },
+        }).then((e) => {
+          //create socket interaction
+          //socket.broadcast.to(builder).emit("nodeCreate", { newNode: savedData });
+          req.socket.emit("edgeCreated", {
+            edge: finalData,
+            builder: builderId,
           });
-
-      Builder.findByIdAndUpdate(builderId, {
-        $push: { edges: new mongoose.Types.ObjectId(finalData._id) },
-      }).then((e) => {
-        //create socket interaction
-        //socket.broadcast.to(builder).emit("nodeCreate", { newNode: savedData });
-        req.socket.emit("edgeCreated", {
-          edge: finalData,
-          builder: builderId,
         });
-      });
+      } else {
+        EventBuilder.findOneAndUpdate(
+          { slug: builderId },
+          {
+            $push: { edges: new mongoose.Types.ObjectId(finalData._id) },
+          }
+        ).then((e) => {
+          //create socket interaction
+          //socket.broadcast.to(builder).emit("nodeCreate", { newNode: savedData });
+          req.socket.emit("edgeCreated", {
+            edge: finalData,
+            builder: builderId,
+          });
+        });
+
+        if (targetHandle == "sera_start")
+          Nodes.find({ id: { $in: [target, source] } })
+            .then((nodes) => {
+              let targetNode = null;
+              let sourceNode = null;
+              nodes.map((nod) => {
+                if (nod.id == target) targetNode = nod;
+                if (nod.id == source) sourceNode = nod;
+              });
+              if (targetNode.type == "toastNode") {
+                SeraSettings.findOneAndUpdate(
+                  { user: "admin" },
+                  {
+                    $push: { toastables: sourceNode.data.inputData },
+                  }
+                ).then((e) => {
+                  console.log(e);
+                });
+              }
+            })
+            .catch((error) => {
+              console.error("Error fetching nodes:", error);
+            });
+      }
+
       res.status(200);
     } catch (error) {
       res.status(500).json({ message: error.message });
@@ -486,9 +530,42 @@ router.delete("/edge", async (req, res) => {
         });
     }
 
-    await Builder.findByIdAndUpdate(builderId, {
-      $pull: { edges: deletedEdge._id },
-    });
+    if (req.query.type != "event") {
+      await Builder.findByIdAndUpdate(builderId, {
+        $pull: { edges: deletedEdge._id },
+      });
+    } else {
+      await EventBuilder.findOneAndUpdate(
+        { slug: builderId },
+        {
+          $pull: { edges: deletedEdge._id },
+        }
+      );
+
+      if (deletedEdge.targetHandle == "sera_start")
+        Nodes.find({ id: { $in: [deletedEdge.target, deletedEdge.source] } })
+          .then((nodes) => {
+            let targetNode = null;
+            let sourceNode = null;
+            nodes.map((nod) => {
+              if (nod.id == deletedEdge.target) targetNode = nod;
+              if (nod.id == deletedEdge.source) sourceNode = nod;
+            });
+            if (targetNode.type == "toastNode") {
+              SeraSettings.findOneAndUpdate(
+                { user: "admin" },
+                {
+                  $pull: { toastables: sourceNode.data.inputData },
+                }
+              ).then((e) => {
+                console.log(e);
+              });
+            }
+          })
+          .catch((error) => {
+            console.error("Error fetching nodes:", error);
+          });
+    }
 
     req.socket.emit("edgeDeleted", {
       edge: req.body,
