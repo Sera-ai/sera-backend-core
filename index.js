@@ -28,12 +28,7 @@ database.once("connected", () => {
   const http = require("http");
   const server = http.createServer(app);
 
-  app.use(
-    cors(),
-    express.json(),
-    bodyParser.urlencoded({ extended: true }),
-    bodyParser.json()
-  );
+  app.use(cors(), express.json(), bodyParser.urlencoded({ extended: true }));
 
   app.use((req, res, next) => {
     req.socket = socket; // Attach socket to request
@@ -44,11 +39,7 @@ database.once("connected", () => {
   app.use("/manage/endpoint", endpointRoutes);
   app.use("/manage/playbook", playbookRoutes);
 
-  socket.on("connect", () => {
-    console.log("Connected to WebSocket server");
-  });
-
-  socket.on("connection", () => {
+  socket.on("connectSuccessful", () => {
     console.log("Connected to WebSocket server");
   });
 
