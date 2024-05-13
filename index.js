@@ -9,6 +9,7 @@ const playbookRoutes = require("./src/routes/routes.playbook");
 
 const { io } = require("socket.io-client");
 const socket = io(`ws://localhost:${process.env.BE_SOCKET_PORT}`, {
+  path: '/sera-socket-io',
   transports: ["websocket"],
 });
 
