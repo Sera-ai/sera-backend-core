@@ -56,11 +56,7 @@ router.post("/", async (req, res) => {
       host_id: host_id,
       builder_id: req.body.builder_id ?? null,
       endpoint: truepath,
-      method: req.body.method,
-      sera_config: {
-        debug: true,
-        rely: false,
-      },
+      method: req.body.method
     });
 
     try {

@@ -18,11 +18,7 @@ const dataSchema = new mongoose.Schema({
   method: {
     required: true,
     type: String,
-  },
-  sera_config: {
-    required: false,
-    type: Object,
-  },
+  }
 });
 
 module.exports = mongoose.model("sera_endpoints", dataSchema);
