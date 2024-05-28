@@ -9,7 +9,6 @@ const Builder = require("../models/models.builder");
 const Nodes = require("../models/models.nodes");
 const Edges = require("../models/models.edges");
 const Endpoints = require("../models/models.endpoints");
-const Plugins = require("../models/models.plugins");
 const EventStruc = require("../models/models.eventStruc");
 const router = express.Router();
 
@@ -383,76 +382,6 @@ router.post("/builder/create", async (req, res) => {
       edges,
       nodes,
       enabled: true,
-    });
-
-    try {
-      const dataToSave = await data.save();
-      res.status(200).json(dataToSave);
-    } catch (error) {
-      res.status(400).json({ message: error.message });
-    }
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-router.post("/plugins/create", async (req, res) => {
-  try {
-    let ownerData;
-    let ep = false;
-    const data1 = await Hosts.findById(req.body.owner_id);
-    if (!data1) {
-      const searc = await Endpoints.findById(req.body.owner_id);
-      ep = true;
-      ownerData = searc;
-    } else {
-      ownerData = data1;
-    }
-
-    const collectionSearch = ep ? Endpoints : Hosts;
-    const orderBase = collectionSearch.find({ owner_id: req.body.owner_id });
-
-    const data = new Plugins({
-      owner_id: ownerData._id,
-      endpoint: req.body.endpoint,
-      order: (await orderBase).length + 1,
-      breakable: req.body.breakable,
-      method: req.body.method,
-    });
-
-    try {
-      const dataToSave = await data.save();
-      res.status(200).json(dataToSave);
-    } catch (error) {
-      res.status(400).json({ message: error.message });
-    }
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-router.post("/plugouts/create", async (req, res) => {
-  try {
-    let ownerData;
-    let ep = false;
-    const data1 = await Hosts.findById(req.body.owner_id);
-    if (!data1) {
-      const searc = await Endpoints.findById(req.body.owner_id);
-      ep = true;
-      ownerData = searc;
-    } else {
-      ownerData = data1;
-    }
-
-    const collectionSearch = ep ? Endpoints : Hosts;
-    const orderBase = collectionSearch.find({ owner_id: req.body.owner_id });
-
-    const data = new Plugins({
-      owner_id: ownerData._id,
-      endpoint: req.body.endpoint,
-      order: (await orderBase).length + 1,
-      breakable: req.body.breakable,
-      method: req.body.method,
     });
 
     try {

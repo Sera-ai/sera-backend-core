@@ -8,7 +8,6 @@ const EventBuilder = require("../models/models.eventBuilder");
 const Nodes = require("../models/models.nodes");
 const Edges = require("../models/models.edges");
 const Endpoints = require("../models/models.endpoints");
-const Plugins = require("../models/models.plugins");
 const router = express.Router();
 
 router.get("/", async (req, res) => {
