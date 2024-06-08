@@ -345,7 +345,7 @@ router.post("/builder/create", async (req, res) => {
           source: gen3,
           sourceHandle: f.name,
           target: gen4,
-          targetHandle: f.schema["type"] == "null" ? `sera_start` : f.name,
+          targetHandle: f.schema["type"] == "null" ? `sera.sera_start` : f.name,
           id: `${gen3}-${gen4}-${f.name}-${generateRandomString()}`,
           animated: f.schema["type"] == "null" ? true : false,
           style: {

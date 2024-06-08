@@ -429,7 +429,7 @@ router.post("/edge", async (req, res) => {
           });
         });
 
-        if (targetHandle == "sera_start")
+        if (targetHandle == "sera.sera_start")
           Nodes.find({ id: { $in: [target, source] } })
             .then((nodes) => {
               let targetNode = null;
@@ -537,7 +537,7 @@ router.delete("/edge", async (req, res) => {
         }
       );
 
-      if (deletedEdge.targetHandle == "sera_start")
+      if (deletedEdge.targetHandle == "sera.sera_start")
         Nodes.find({ id: { $in: [deletedEdge.target, deletedEdge.source] } })
           .then((nodes) => {
             let targetNode = null;
