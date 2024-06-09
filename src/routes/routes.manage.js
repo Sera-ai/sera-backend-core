@@ -6,6 +6,7 @@ const Hosts = require("../models/models.hosts");
 const OAS = require("../models/models.oas");
 const DNS = require("../models/models.dns");
 const Builder = require("../models/models.builder");
+const BuilderTemplate = require("../models/models.builder_template");
 const Nodes = require("../models/models.nodes");
 const Edges = require("../models/models.edges");
 const Endpoints = require("../models/models.endpoints");
@@ -294,7 +295,7 @@ router.post("/builder/create", async (req, res) => {
 
     const fields = parameters[0];
     const resFields = parameters[2];
-    const template = await Builder.findOne({ template: true });
+    const template = await BuilderTemplate.findOne({ template: true });
 
     const truepath = (req.body.hostname + req.body.path).replace(
       host.hostname,
