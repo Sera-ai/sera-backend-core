@@ -1,4 +1,4 @@
-const express = require("express");
+const fastifyPlugin = require('fastify-plugin');
 const mongoose = require("mongoose");
 
 const Hosts = require("../models/models.hosts");
@@ -7,25 +7,25 @@ const Builder = require("../models/models.builder");
 const EventBuilder = require("../models/models.eventBuilder");
 const Nodes = require("../models/models.nodes");
 const Edges = require("../models/models.edges");
-const Endpoints = require("../models/models.endpoints");
-const router = express.Router();
 
-router.get("/", async (req, res) => {
-  try {
-    const node_data = await EventBuilder.find();
+async function routes(fastify, options) {
+  fastify.get("/", async (request, reply) => {
+    try {
+      const node_data = await EventBuilder.find();
 
-    const transformedData = node_data.map((item) => {
-      return {
-        name: `[${item.name}](/events/playbook/${item.slug})`,
-        type: item.type,
-        enabled: item.enabled,
-      };
-    });
+      const transformedData = node_data.map((item) => {
+        return {
+          name: `[${item.name}](/events/playbook/${item.slug})`,
+          type: item.type,
+          enabled: item.enabled,
+        };
+      });
 
-    res.send(transformedData);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
+      reply.send(transformedData);
+    } catch (error) {
+      reply.status(500).send({ message: error.message });
+    }
+  });
+}
 
-module.exports = router;
+module.exports = fastifyPlugin(routes);

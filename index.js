@@ -1,51 +1,55 @@
-const cors = require("cors");
-const express = require("express");
+require("dotenv").config();
+const Fastify = require("fastify");
 const mongoose = require("mongoose");
-const mongoString = process.env.DB_HOST;
-const bodyParser = require("body-parser");
+const { io } = require("socket.io-client");
 const manageRoutes = require("./src/routes/routes.manage");
 const endpointRoutes = require("./src/routes/routes.endpoint");
 const playbookRoutes = require("./src/routes/routes.playbook");
 
-const { io } = require("socket.io-client");
+const mongoString = process.env.DB_HOST;
 const socket = io(`ws://localhost:${process.env.BE_SOCKET_PORT}`, {
   path: '/sera-socket-io',
   transports: ["websocket"],
 });
 
-mongoose.connect(`${mongoString}/Sera`, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
-const database = mongoose.connection;
+global.socket = socket
 
-database.on("error", (error) => {
-  console.log(error);
-  process.exit();
-});
-database.once("connected", () => {
-  console.log("Database Connected");
-  const app = express();
-  const http = require("http");
-  const server = http.createServer(app);
+const app = Fastify();
 
-  app.use(cors(), express.json(), bodyParser.urlencoded({ extended: true }));
+(async () => {
+  try {
+    await mongoose.connect(`${mongoString}/Sera`, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log("Database Connected");
 
-  app.use((req, res, next) => {
-    req.socket = socket; // Attach socket to request
-    next();
-  });
+    // Register Fastify plugins
+    await app.register(require('@fastify/cors'), { origin: "*" });
+    await app.register(require('@fastify/formbody'));
+    
+    // Register routes with unique prefixes
+    app.register(manageRoutes);
+    app.register(endpointRoutes);
+    app.register(playbookRoutes);
 
-  app.use("/manage", manageRoutes);
-  app.use("/manage/endpoint", endpointRoutes);
-  app.use("/manage/playbook", playbookRoutes);
+    // Handle WebSocket connection
+    socket.on("connectSuccessful", () => {
+      console.log("Connected to WebSocket server");
+    });
 
-  socket.on("connectSuccessful", () => {
-    console.log("Connected to WebSocket server");
-  });
-
-  server.listen(process.env.BE_BUILDER_PORT, () => {
-    console.log(`Builder Started at ${process.env.BE_BUILDER_PORT}`);
-    socket.emit("backendConnect");
-  });
-});
+    // Start the server
+    const port = process.env.BE_BUILDER_PORT;
+    app.listen({ port, host: '0.0.0.0' }, (err) => {
+      if (err) {
+        console.log(err);
+        process.exit(1);
+      }
+      console.log(`Builder Started at ${port}`);
+      socket.emit("backendConnect");
+    });
+  } catch (error) {
+    console.log(error);
+    process.exit(1);
+  }
+})();
