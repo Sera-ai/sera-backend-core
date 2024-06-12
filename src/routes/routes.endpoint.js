@@ -388,27 +388,21 @@ async function routes(fastify, options) {
               if (nod.id == source) sourceNode = nod;
             });
             if (targetNode.type == "toastNode") {
-              if (sourceNode.event == "sera-default") {
-                await SeraSettings.findOneAndUpdate(
-                  { user: "admin" },
-                  {
-                    $pull: { toastables: sourceNode.data.type },
-                  }
-                );
-              } else {
-                await SeraSettings.findOneAndUpdate(
-                  { user: "admin" },
-                  {
-                    $pull: { toastables: sourceNode.data.inputData },
-                  }
-                );
-              }
+              console.log(sourceNode.data.inputData)
+
+              await SeraSettings.findOneAndUpdate(
+                { user: "admin" },
+                {
+                  $push: { toastables: sourceNode.data.inputData },
+                }
+              );
+
             }
           }
         }
 
         try {
-          await axios.post(`http://localhost:${process.env.BE_SEQUENCER_PORT}/builder/${builderId}`, {}, {
+          if (request.query.type != "event") await axios.post(`http://localhost:${process.env.BE_SEQUENCER_PORT}/builder/${builderId}`, {}, {
             headers: {
               'Content-Type': 'application/json',
               'x-sera-service': "be_sequencer"
@@ -501,21 +495,14 @@ async function routes(fastify, options) {
             if (nod.id == deletedEdge.source) sourceNode = nod;
           });
           if (targetNode.type == "toastNode") {
-            if (sourceNode.event == "sera-default") {
-              await SeraSettings.findOneAndUpdate(
-                { user: "admin" },
-                {
-                  $pull: { toastables: sourceNode.data.type },
-                }
-              );
-            } else {
-              await SeraSettings.findOneAndUpdate(
-                { user: "admin" },
-                {
-                  $pull: { toastables: sourceNode.data.inputData },
-                }
-              );
-            }
+
+            await SeraSettings.findOneAndUpdate(
+              { user: "admin" },
+              {
+                $pull: { toastables: sourceNode.data.inputData },
+              }
+            );
+
 
           }
         }
