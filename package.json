@@ -26,6 +26,6 @@
     "mongoose": "^7.4.1",
     "nodemon": "^3.0.1",
     "socket.io": "^4.7.2",
-    "socket.io-client": "^4.7.4"
+    "ws": "^8.17.0"
   }
 }

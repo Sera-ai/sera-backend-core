@@ -252,7 +252,7 @@ async function routes(fastify, options) {
           Builder.findByIdAndUpdate(builderId, {
             $push: { nodes: new mongoose.Types.ObjectId(savedData._id) },
           }).then((e) => {
-            socket.emit("nodeCreated", {
+            socket.wsEmit("nodeCreated", {
               node: savedData,
               builder: builderId,
             });
@@ -264,7 +264,7 @@ async function routes(fastify, options) {
               $push: { nodes: new mongoose.Types.ObjectId(savedData._id) },
             }
           ).then((e) => {
-            socket.emit("nodeCreated", {
+            socket.wsEmit("nodeCreated", {
               node: savedData,
               builder: builderId,
             });
@@ -310,7 +310,7 @@ async function routes(fastify, options) {
         });
       }
 
-      socket.emit("nodeDeleted", {
+      socket.wsEmit("nodeDeleted", {
         node: request.body,
         builder: builderId,
       });
@@ -359,7 +359,7 @@ async function routes(fastify, options) {
             type: "remove",
           }));
 
-          socket.emit("edgeDeleted", {
+          socket.wsEmit("edgeDeleted", {
             edge: socketEdgesToDelete,
             builder: builderId,
           });
@@ -409,7 +409,7 @@ async function routes(fastify, options) {
             }
           });
 
-          socket.emit("edgeCreated", {
+          socket.wsEmit("edgeCreated", {
             edge: finalData,
             builder: builderId,
           });
@@ -431,7 +431,7 @@ async function routes(fastify, options) {
     if (builderId) {
       try {
         await Edges.findByIdAndUpdate(req.body.id, { ...req.body });
-        socket.emit("edgeUpdated", {
+        socket.wsEmit("edgeUpdated", {
           edge: req.body,
           builder: builderId,
         });
@@ -508,7 +508,7 @@ async function routes(fastify, options) {
         }
       }
 
-      socket.emit("edgeDeleted", {
+      socket.wsEmit("edgeDeleted", {
         edge: request.body,
         builder: builderId,
       });
