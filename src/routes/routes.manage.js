@@ -142,22 +142,6 @@ async function routes(fastify, options) {
         hostname: cleanUrl(oasJsonFinal.servers[0].url),
       });
 
-      const agent = new https.Agent({
-        rejectUnauthorized: false,
-      });
-
-      axios.post(
-        "https://dns.sera:12000/dns",
-        { host: cleanUrl(subdo) + ".sera", ip: "127.0.0.1" },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            "x-sera-service": "be_Dns",
-          },
-          httpsAgent: agent,
-        }
-      );
-
       try {
         const dataToSave = await data.save();
         reply.status(200).send(dataToSave);

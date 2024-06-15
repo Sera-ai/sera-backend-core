@@ -6,6 +6,7 @@ const WebSocket = require("ws");
 const manageRoutes = require("./src/routes/routes.manage");
 const endpointRoutes = require("./src/routes/routes.endpoint");
 const playbookRoutes = require("./src/routes/routes.playbook");
+const searchRoutes = require("./src/routes/routes.search");
 
 const mongoString = process.env.DB_HOST;
 const port = process.env.BE_BUILDER_PORT;
@@ -69,6 +70,7 @@ const app = Fastify();
     await app.register(require('@fastify/formbody'));
 
     // Register routes with unique prefixes
+    app.register(searchRoutes);
     app.register(manageRoutes);
     app.register(endpointRoutes);
     app.register(playbookRoutes);

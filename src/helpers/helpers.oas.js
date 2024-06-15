@@ -48,6 +48,16 @@ function extractSchemaProperties(schema, parameters, oas) {
         description: prop.description || "No description available",
       });
     }
+  } else if (schema.items) {
+    //console.log("Schema has properties:", Object.keys(schema.properties)); // Log properties keys
+    for (const propName in schema.items.properties) {
+      const prop = schema.items.properties[propName];
+      parameters.push({
+        name: propName,
+        schema: { type: prop.type },
+        description: prop.description || "No description available",
+      });
+    }
   } else if (schema.$ref) {
     //console.log("Schema has $ref:", schema.$ref); // Log $ref
     const resolvedSchema = resolveRef(oas, schema.$ref);

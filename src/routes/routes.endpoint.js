@@ -76,6 +76,7 @@ async function routes(fastify, options) {
     let host = null;
 
     try {
+      console.log(request.query)
       if (request.query.path) {
 
         const queryPath = request.query.path.split("/")
@@ -174,7 +175,7 @@ async function routes(fastify, options) {
         response,
         request.query.event ? true : false
       );
-      if (!builderData) throw { error: "NoBuilder", host: host?._id };
+      if (!builderData) throw { error: "NoBuilder", host: host._id };
       const { nodes, edges } = builderData;
 
       reply.status(200).send({
