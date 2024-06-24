@@ -1,6 +1,6 @@
 {
     "watch": ["index.js"],
     "ext": "js,json",
-    "exec": "node index.js | tee ../.logs/be_Builder.log"
+    "exec": "node index.js | ts | tee ../.logs/be_Builder.log"
 }
   
