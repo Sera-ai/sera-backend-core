@@ -368,11 +368,7 @@ async function routes(fastify, options) {
           await Edges.deleteMany({ _id: { $in: idsToDelete } });
         }
 
-        if (request.query.type != "event") {
-          await Builder.findByIdAndUpdate(builderId, {
-            $push: { edges: new mongoose.Types.ObjectId(finalData._id) },
-          });
-        } else {
+        if (request.query.type == "event") {
           await EventBuilder.findOneAndUpdate(
             { slug: builderId },
             {
@@ -403,6 +399,17 @@ async function routes(fastify, options) {
         }
 
         try {
+          socket.wsEmit("edgeCreated", {
+            edge: finalData,
+            builder: builderId,
+          });
+
+          if (request.query.type != "event") {
+            await Builder.findByIdAndUpdate(builderId, {
+              $push: { edges: new mongoose.Types.ObjectId(finalData._id) },
+            });
+          }
+
           if (request.query.type != "event") await axios.post(`http://localhost:${process.env.BE_SEQUENCER_PORT}/builder/${builderId}`, {}, {
             headers: {
               'Content-Type': 'application/json',
@@ -410,10 +417,7 @@ async function routes(fastify, options) {
             }
           });
 
-          socket.wsEmit("edgeCreated", {
-            edge: finalData,
-            builder: builderId,
-          });
+          
         } catch (error) {
           console.error('Request error:', error);
           reply.status(500).send('Error updating mapping');
