@@ -1,5 +1,14 @@
 const fastifyPlugin = require('fastify-plugin');
 const mongoose = require("mongoose");
+const fs = require('fs');
+const path = require('path');
+const readline = require('readline');
+
+
+const logsDirectory = path.join('/workspace/.logs');
+
+const timestampRegex1 = /\b(\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2})\b/; // YYYY/MM/DD HH:MM:SS
+const timestampRegex2 = /\[(\d{2}\/\w{3}\/\d{4}:\d{2}:\d{2}:\d{2} \+\d{4})\]/; // [24/Jun/2024:21:37:38 +0000]
 
 const TX_LOGS = require("../models/models.tx_logs");
 const seraSettings = require("../models/models.sera_settings");
@@ -131,27 +140,27 @@ const createRadarChartData = (node_data, startTimestamp, endTimestamp, sera_sett
   const rps = (totalRequests / timePeriodInSeconds) * 100;
   const successRate = (successfulRequests / totalRequests) * 100;
 
-  const {Builders, Inventory, Latency, RPS, Success, Uptime} = sera_settings.systemSettings.seraSettings.healthMetrics;
+  const { Builders, Inventory, Latency, RPS, Success, Uptime } = sera_settings.systemSettings.seraSettings.healthMetrics;
 
   return [
     {
       subject: "RPS",
       description: "Percent of overall RPS",
-      actual: rps.toFixed(5)+" rps",
-      value: (parseFloat(rps.toFixed(5)) / parseFloat(RPS) )* 100,
+      actual: rps.toFixed(5) + " rps",
+      value: (parseFloat(rps.toFixed(5)) / parseFloat(RPS)) * 100,
       cap: 100,
     },
     {
       subject: "Uptime",
       description: "Percent of time since last restart that this has been available",
-      actual: uptime / Uptime * 100+"%",
+      actual: uptime / Uptime * 100 + "%",
       value: uptime / Uptime * 100,
       cap: 100,
     },
     {
       subject: "Success",
       description: "Percent of responses that are 200 (Status Ok)",
-      actual: successRate+"%",
+      actual: successRate + "%",
       value: successRate,
       cap: 100,
     },
@@ -171,7 +180,7 @@ const createRadarChartData = (node_data, startTimestamp, endTimestamp, sera_sett
     },
     {
       subject: "Latency",
-      actual: latency.toFixed(2)+"ms",
+      actual: latency.toFixed(2) + "ms",
       description: `Average Latency of requests that are above ${Latency}ms`,
       value: (Latency / latency * 100) > 100 ? 100 : parseFloat((Latency / latency * 100).toFixed(2)),
       cap: 100,
@@ -237,6 +246,96 @@ async function routes(fastify, options) {
         endpointSankeyChart: endpointSankeyChart,
         endpointRadialChart: endpointRadialChart
       });
+    } catch (error) {
+      reply.status(500).send({ message: error.message });
+    }
+  });
+
+  fastify.get("/manage/logs", async (request, reply) => {
+    try {
+      const { period, type } = request.query;
+
+      const typeManager = {
+        seraLogs: ["be_Builder.log",
+          "be_Processor.log",
+          "be_Socket.log",
+          "be_Sequencer.log"
+        ],
+        systemLogs: ["nginx-error.log", "nginx-timing.log"]
+      }
+
+      const numLines = 100; // Number of lines you want to read from the end of each file
+
+      async function readLastLines(filePath, numLines) {
+        return new Promise((resolve, reject) => {
+          const stream = fs.createReadStream(filePath, { encoding: 'utf8', autoClose: true });
+          const rl = readline.createInterface({
+            input: stream,
+            crlfDelay: Infinity
+          });
+
+          const lines = [];
+          rl.on('line', (line) => {
+            lines.push(line);
+            if (lines.length > numLines) {
+              lines.shift();
+            }
+          });
+
+          rl.on('close', () => {
+            resolve(lines.join('\n'));
+          });
+
+          rl.on('error', (err) => {
+            reject(err);
+          });
+        });
+      }
+
+      function parseTimestamp(timestamp) {
+        if (timestampRegex1.test(timestamp)) {
+          return new Date(timestamp.replace(/\//g, '-')).getTime();
+        } else if (timestampRegex2.test(timestamp)) {
+          const [day, month, year, hour, minute, second, timezone] = timestamp.match(/(\d{2})\/(\w{3})\/(\d{4}):(\d{2}):(\d{2}):(\d{2}) (\+\d{4})/).slice(1);
+          const monthNames = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
+          const parsedDate = new Date(Date.UTC(year, monthNames[month], day, hour, minute, second));
+          return parsedDate.getTime();
+        }
+        return null;
+      }
+
+      const logTypes = []
+
+      async function extractTimestamps(content, type) {
+        return content.map(line => {
+          const match = line.match(timestampRegex1) || line.match(timestampRegex2);
+          const message = line.split("|").length > 1 ? line.split("|").slice(1).join("|").trim() : line;
+          const ts = match ? parseTimestamp(match[0]) : null;
+          return { ts, type, message };
+        }).filter(item => item.ts !== null); // Filter out null values
+      }
+
+      try {
+        // Read directory and get all filenames
+        const files = await fs.promises.readdir(logsDirectory);
+
+        // Map filenames to promises that read the last "X" lines of the file content
+        const fileReadPromises = files.filter((file) => type ? file == type : true).map(async (file) => {
+          const filePath = path.join(logsDirectory, file);
+          logTypes.push({ type: file, name: file, entries: [file] })
+          const content = await readLastLines(filePath, numLines);
+          const timestamps = await extractTimestamps(content.split('\n'), file);
+          return timestamps;
+        });
+
+        // Wait for all file read operations to complete
+        const fileContents = await Promise.all(fileReadPromises);
+
+        // Print out each file's name, its last "X" lines of content, and extracted timestamps
+        reply.send({ types: typeManager, logs: fileContents.flat().sort((a, b) => b.ts - a.ts) })
+      } catch (err) {
+        console.error(`Error reading files: ${err}`);
+      }
     } catch (error) {
       reply.status(500).send({ message: error.message });
     }
