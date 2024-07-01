@@ -127,14 +127,6 @@ async function routes(fastify, options) {
 
       const dnsSave = await dns.save();
 
-      const data2add = {
-        action: "add",
-        hostname: `${cleanUrl(subdo)}.sera`,
-        ip: "127.0.0.1"
-      };
-      
-      axios.post('https://127.0.0.1/update-dns', data2add)
-
       const data = new Hosts({
         oas_spec: oasSave._id,
         sera_dns: dnsSave._id,
