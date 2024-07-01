@@ -1,5 +1,5 @@
 {
-    "watch": ["index.js"],
+    "watch": ["index.js", "src"],
     "ext": "js,json",
     "exec": "node index.js | ts '%Y/%m/%d %H:%M:%S |' | tee ../.logs/be_Builder.log"
 }

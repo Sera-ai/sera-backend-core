@@ -65,12 +65,18 @@ const organizeData = (node_data, period, count = 5) => {
   // Initialize dataMap for each period
   periods.forEach((startOfPeriod, index) => {
     const endOfPeriod = index < periods.length - 1 ? periods[index + 1] : new Date();
-    const name = format(startOfPeriod, period === 'monthly' ? 'MMM' : period === 'hourly' ? "HH:00" : "yyyy-MM-dd'T'HH:mm:ss.SSSX");
+    console.log(startOfPeriod, endOfPeriod)
+    const name = format(startOfPeriod, "yyyy-MM-dd'T'HH:mm:ss.SSSX");
     dataMap[name] = { name, req: 0, error: 0 };
 
     node_data.forEach(item => {
       const date = new Date(item.ts * 1000);
+
       if (isAfter(date, startOfPeriod) && isBefore(date, endOfPeriod)) {
+        console.log(date, startOfPeriod, endOfPeriod)
+        console.log(date, isAfter(date, startOfPeriod))
+        console.log(date, isBefore(date, endOfPeriod))
+
         dataMap[name].req += 1;
         if (item.response.status >= 400) {
           dataMap[name].error += 1;
@@ -78,6 +84,8 @@ const organizeData = (node_data, period, count = 5) => {
       }
     });
   });
+
+  console.log(dataMap)
 
   return Object.values(dataMap);
 };
@@ -188,6 +196,26 @@ const createRadarChartData = (node_data, startTimestamp, endTimestamp, sera_sett
   ];
 };
 
+const getHostData = (nodeData) => {
+  const details = {
+    Status: "Active",
+    "Endpoint Type": "REST API",
+    Methods: [...new Set(nodeData.map(entry => entry.method).filter(Boolean))],
+    Protocols: [...new Set(nodeData.map(entry => entry.ssl_analytics?.protocol).filter(Boolean))],
+    Encryption: [...new Set(nodeData.flatMap(entry => entry.ssl_analytics?.cipher).filter(Boolean))],
+    Authentication: [...new Set(nodeData.map(entry => entry.session_analytics?.auth_type).filter(Boolean))],
+  };
+
+  const statistics = {
+    Requests: nodeData.length.toString(),
+    "Avg. Response": (nodeData.reduce((sum, entry) => sum + (entry.response_time ?? 0), 0) / nodeData.length).toFixed(2) + "ms",
+    "Failed Req": nodeData.filter(entry => entry.response?.status >= 400).length.toString(),
+    "Unique Clients": [...new Set(nodeData.map(entry => entry.session_analytics?.ip_address).filter(Boolean))].length.toString(),
+  };
+
+  return { details, statistics };
+};
+
 // Example usage in your route
 async function routes(fastify, options) {
   fastify.get("/manage/analytics", async (request, reply) => {
@@ -232,9 +260,7 @@ async function routes(fastify, options) {
         query.hostname = host;
       }
 
-      console.log(query)
       const node_data = await TX_LOGS.find(query);
-      console.log(node_data.length)
       const sera_settings = await seraSettings.findOne({ "user": "admin" });
 
       const endpointAreaChart = organizeData(node_data, period);
@@ -391,13 +417,74 @@ async function routes(fastify, options) {
       if (method) {
         query.method = method.toUpperCase();
       }
-
+      console.log(query);
       const node_data = await TX_LOGS.find(query);
-
       const endpointAreaChart = organizeData(node_data, period, 50);
 
       reply.send({
         usageGraph: endpointAreaChart
+      });
+    } catch (error) {
+      reply.status(500).send({ message: error.message });
+    }
+  });
+
+  fastify.get("/manage/hostdata", async (request, reply) => {
+    try {
+      const { period, host, path, method } = request.query;
+
+      let startTimestamp, endTimestamp;
+      const currentDate = new Date();
+
+      switch (period) {
+        case "hourly":
+          startTimestamp = new Date(currentDate.setHours(currentDate.getHours() - 5)).getTime() / 1000;
+          endTimestamp = new Date().getTime() / 1000;
+          break;
+        case "daily":
+          startTimestamp = new Date(currentDate.setDate(currentDate.getDate() - 5)).getTime() / 1000;
+          endTimestamp = new Date().getTime() / 1000;
+          break;
+        case "weekly":
+          startTimestamp = new Date(currentDate.setDate(currentDate.getDate() - 7 * 5)).getTime() / 1000;
+          endTimestamp = new Date().getTime() / 1000;
+          break;
+        case "monthly":
+          startTimestamp = new Date(currentDate.setMonth(currentDate.getMonth() - 5)).getTime() / 1000;
+          endTimestamp = new Date().getTime() / 1000;
+          break;
+        case "custom":
+          if (!request.query.startDate || !request.query.endDate) {
+            return reply.status(400).send({ message: "Custom period requires startDate and endDate" });
+          }
+          startTimestamp = parseFloat(request.query.startDate);
+          endTimestamp = parseFloat(request.query.endDate);
+          break;
+        default:
+          startTimestamp = new Date(currentDate.setMonth(currentDate.getMonth() - 1)).getTime() / 1000;
+          endTimestamp = new Date().getTime() / 1000;
+          break;
+      }
+
+      let query = { ts: { $gte: startTimestamp, $lte: endTimestamp } };
+
+      if (host) {
+        query.hostname = host;
+      }
+
+      if (path) {
+        query.path = path;
+      }
+
+      if (method) {
+        query.method = method.toUpperCase();
+      }
+      console.log(query);
+      const node_data = await TX_LOGS.find(query);
+      const hostData = getHostData(node_data);
+
+      reply.send({
+        hostData: hostData
       });
     } catch (error) {
       reply.status(500).send({ message: error.message });
