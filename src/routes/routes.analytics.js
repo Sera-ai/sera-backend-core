@@ -57,9 +57,9 @@ const getPreviousPeriods = (date, period, count) => {
   return periods.reverse();
 };
 
-const organizeData = (node_data, period) => {
+const organizeData = (node_data, period, count = 5) => {
   const currentDate = new Date();
-  const periods = getPreviousPeriods(currentDate, period, 5);
+  const periods = getPreviousPeriods(currentDate, period, count);
   const dataMap = {};
 
   // Initialize dataMap for each period
@@ -340,6 +340,70 @@ async function routes(fastify, options) {
       reply.status(500).send({ message: error.message });
     }
   });
+
+  fastify.get("/manage/usage", async (request, reply) => {
+    try {
+      const { period, host, path, method } = request.query;
+
+      let startTimestamp, endTimestamp;
+      const currentDate = new Date();
+
+      switch (period) {
+        case "hourly":
+          startTimestamp = new Date(currentDate.setHours(currentDate.getHours() - 5)).getTime() / 1000;
+          endTimestamp = new Date().getTime() / 1000;
+          break;
+        case "daily":
+          startTimestamp = new Date(currentDate.setDate(currentDate.getDate() - 5)).getTime() / 1000;
+          endTimestamp = new Date().getTime() / 1000;
+          break;
+        case "weekly":
+          startTimestamp = new Date(currentDate.setDate(currentDate.getDate() - 7 * 5)).getTime() / 1000;
+          endTimestamp = new Date().getTime() / 1000;
+          break;
+        case "monthly":
+          startTimestamp = new Date(currentDate.setMonth(currentDate.getMonth() - 5)).getTime() / 1000;
+          endTimestamp = new Date().getTime() / 1000;
+          break;
+        case "custom":
+          if (!request.query.startDate || !request.query.endDate) {
+            return reply.status(400).send({ message: "Custom period requires startDate and endDate" });
+          }
+          startTimestamp = parseFloat(request.query.startDate);
+          endTimestamp = parseFloat(request.query.endDate);
+          break;
+        default:
+          startTimestamp = new Date(currentDate.setMonth(currentDate.getMonth() - 1)).getTime() / 1000;
+          endTimestamp = new Date().getTime() / 1000;
+          break;
+      }
+
+      let query = { ts: { $gte: startTimestamp, $lte: endTimestamp } };
+
+      if (host) {
+        query.hostname = host;
+      }
+
+      if (path) {
+        query.path = path;
+      }
+
+      if (method) {
+        query.method = method.toUpperCase();
+      }
+
+      const node_data = await TX_LOGS.find(query);
+
+      const endpointAreaChart = organizeData(node_data, period, 50);
+
+      reply.send({
+        usageGraph: endpointAreaChart
+      });
+    } catch (error) {
+      reply.status(500).send({ message: error.message });
+    }
+  });
+
 }
 
 module.exports = fastifyPlugin(routes);
