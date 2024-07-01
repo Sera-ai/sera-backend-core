@@ -118,7 +118,7 @@ async function routes(fastify, options) {
       const subdo = `${hostdomain.substring(0, 40)}-${generateRandomString(6)}`;
       const dns = new DNS({
         sera_config: {
-          domain: "local.sera",
+          domain: cleanUrl(hostdomain),
           expires: null,
           sub_domain: cleanUrl(subdo),
           obfuscated: null,
@@ -126,6 +126,14 @@ async function routes(fastify, options) {
       });
 
       const dnsSave = await dns.save();
+
+      const data2add = {
+        action: "add",
+        hostname: `${cleanUrl(subdo)}.sera`,
+        ip: "127.0.0.1"
+      };
+      
+      axios.post('https://127.0.0.1/update-dns', data2add)
 
       const data = new Hosts({
         oas_spec: oasSave._id,
