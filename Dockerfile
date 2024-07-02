@@ -1,16 +1,19 @@
-FROM node:18-slim
+# Use the official lightweight Node.js 18 image based on Alpine Linux
+FROM node:18-alpine
 
-# Create app directory
-WORKDIR /usr/src/app
+# Install additional dependencies if necessary
+RUN apk add --no-cache \
+    bash \
+    git
 
-# Install app dependencies
-COPY package*.json ./
+# Set the working directory
+WORKDIR /workspace
 
-RUN npm install
-# If you are building your code for production
-# RUN npm ci --only=production
-
-# Bundle app source
+# Copy the rest of your application code
 COPY . .
 
-CMD [ "npm", "run", "start"]
+# Expose the port the app runs on
+EXPOSE 12030
+
+# Command to run the application
+CMD ["npm", "start"]

@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend_builder-service
+spec:
+  selector:
+    app: backend_builder
+  ports:
+    - protocol: TCP
+      port: 12030
+      targetPort: 12030

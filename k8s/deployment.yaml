@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend_builder
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend_builder
+  template:
+    metadata:
+      labels:
+        app: backend_builder
+    spec:
+      volumes:
+        - name: node-modules
+          hostPath:
+            path: /workspace/node_modules
+      containers:
+      - name: backend_builder
+        image: backend_builder:latest
+        ports:
+        - containerPort: 12030
+        volumeMounts:
+        - name: node-modules
+          mountPath: /workspace/be_Builder/node_modules
+        - name: models
+          mountPath: /workspace/be_Builder/src/models
