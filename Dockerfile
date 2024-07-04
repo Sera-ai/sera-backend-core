@@ -1,5 +1,5 @@
 # Use the official lightweight Node.js 18 image based on Alpine Linux
-FROM node:18-alpine
+FROM node:20-alpine
 
 # Install additional dependencies if necessary
 RUN apk add --no-cache \
@@ -14,6 +14,3 @@ COPY . .
 
 # Expose the port the app runs on
 EXPOSE 12030
-
-# Command to run the application
-CMD ["npm", "start"]
