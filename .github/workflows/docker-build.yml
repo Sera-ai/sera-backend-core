@@ -29,4 +29,4 @@ jobs:
         context: .
         file: ./Dockerfile
         push: true
-        tags: ghcr.io/sera-ai/sera-be-builder:latest
+        tags: ghcr.io/sera-ai/sera-backend-core:latest
