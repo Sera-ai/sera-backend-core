@@ -9,6 +9,8 @@ const playbookRoutes = require("./src/routes/routes.playbook");
 const searchRoutes = require("./src/routes/routes.search");
 const analyticsRoutes = require("./src/routes/routes.analytics");
 
+const seraEvents = require("./src/models/models.seraEvents")
+
 const mongoString = process.env.DB_HOST;
 const port = process.env.BE_BUILDER_PORT;
 
@@ -83,6 +85,7 @@ const app = Fastify();
         console.log(err);
         process.exit(1);
       }
+      seraEvents.create({ event: "sera", type: "seraStart", data: { result: "success", timestamp: new Date().getTime() } })
       console.log(`Builder Started at ${port}`);
     });
   } catch (error) {
