@@ -7,13 +7,18 @@ const seraEvents = require("../models/models.seraEvents");
 async function routes(fastify, options) {
   fastify.get("/manage/events", async (request, reply) => {
     try {
-      const node_data = await seraEvents.find();
+      let query = {}
+      if (request.query.id) query._id = request.query.id
+      const node_data = await seraEvents.find(query);
       const transformedData = node_data.map((item) => {
         let maleableItem = { ...item._doc }
         delete maleableItem.__v
-        delete maleableItem._id
-        delete maleableItem.id
-        delete maleableItem.data
+        if (!request.query.id) {
+          delete maleableItem._id
+          delete maleableItem.id
+          delete maleableItem.data
+          maleableItem.eventId = `[${maleableItem.eventId}](/events/viewer/${item._id})`
+        }
         maleableItem.ts = new Date(item.ts).toISOString()
         return maleableItem
       });
@@ -21,7 +26,21 @@ async function routes(fastify, options) {
       console.log(transformedData)
 
 
-      reply.send(normalizeEventInventory(transformedData));
+      reply.send(normalizeEventInventory(transformedData).sort((a, b) => a.eventId - b.eventId).reverse());
+    } catch (error) {
+      reply.status(500).send({ message: error.message });
+    }
+  });
+
+  fastify.post("/manage/events", async (request, reply) => {
+    try {
+      let node_data = request.body
+
+      console.log(node_data)
+
+      seraEvents.create({ event: "builder", type: node_data.event_name, data: node_data.data })
+
+      reply.send("ok");
     } catch (error) {
       reply.status(500).send({ message: error.message });
     }
@@ -33,7 +52,7 @@ async function routes(fastify, options) {
 
       const transformedData = node_data.map((item) => {
         return {
-          name: `[${item.name}](/events/playbook/${item.slug})`,
+          name: `[${item.name}][/events/playbook/${item.slug}]`,
           type: item.type,
           enabled: item.enabled,
         };

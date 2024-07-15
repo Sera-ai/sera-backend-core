@@ -15,7 +15,7 @@ async function routes(fastify, options) {
 
       const transformedData = node_data.map((item) => {
         return {
-          name: `[${item.name}](/events/playbook/${item.slug})`,
+          name: `[${item.name}][/events/playbook/${item.slug}]`,
           type: item.type,
           enabled: item.enabled,
         };

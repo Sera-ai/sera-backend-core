@@ -278,7 +278,7 @@ async function routes(fastify, options) {
     }
   });
 
-  fastify.delete("/manage/endpoint/node", async (request, reply) => {
+  fastify.post("/manage/endpoint/node/delete", async (request, reply) => {
     const builderId = request.headers["x-sera-builder"];
     const nodeId = request.body[0]._id;
     if (!builderId || !nodeId) {
@@ -310,6 +310,13 @@ async function routes(fastify, options) {
           $pull: { nodes: deletedNode._id },
         });
       }
+
+      if (request.query.type != "event") await axios.post(`http://localhost:${process.env.BE_SEQUENCER_PORT}/builder/${builderId}`, {}, {
+        headers: {
+          'Content-Type': 'application/json',
+          'x-sera-service': "be_sequencer"
+        }
+      });
 
       socket.wsEmit("nodeDeleted", {
         node: request.body,
@@ -447,19 +454,23 @@ async function routes(fastify, options) {
     }
   });
 
-  fastify.delete("/manage/endpoint/edge", async (request, reply) => {
+  fastify.post("/manage/endpoint/edge/delete", async (request, reply) => {
+    console.log("deletin")
+
     const builderId = request.headers["x-sera-builder"];
     const edgeId = request.body[0].id;
     if (!builderId || !edgeId) {
       return reply.status(500).send({ message: "Missing builder ID or edge ID" });
     }
     try {
+      console.log("deleting edge")
       const deletedEdge = await Edges.findByIdAndDelete(
         new mongoose.Types.ObjectId(edgeId)
       );
       if (!deletedEdge) {
         return reply.status(404).send({ message: "Edge not found" });
       }
+      console.log("deleted edge")
 
       if (deletedEdge.targetHandle == "seraFunctionEvent") {
         const node = await Nodes.findOne({ id: deletedEdge.target });
@@ -512,6 +523,13 @@ async function routes(fastify, options) {
           }
         }
       }
+
+      if (request.query.type != "event") await axios.post(`http://localhost:${process.env.BE_SEQUENCER_PORT}/builder/${builderId}`, {}, {
+        headers: {
+          'Content-Type': 'application/json',
+          'x-sera-service': "be_sequencer"
+        }
+      });
 
       socket.wsEmit("edgeDeleted", {
         edge: request.body,
