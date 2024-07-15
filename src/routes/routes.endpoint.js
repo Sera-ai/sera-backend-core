@@ -311,7 +311,7 @@ async function routes(fastify, options) {
         });
       }
 
-      if (request.query.type != "event") await axios.post(`http://localhost:${process.env.BE_SEQUENCER_PORT}/builder/${builderId}`, {}, {
+      await axios.post(`http://localhost:${process.env.BE_SEQUENCER_PORT}/${request.query.type}/${builderId}`, {}, {
         headers: {
           'Content-Type': 'application/json',
           'x-sera-service': "be_sequencer"
@@ -417,14 +417,14 @@ async function routes(fastify, options) {
             });
           }
 
-          if (request.query.type != "event") await axios.post(`http://localhost:${process.env.BE_SEQUENCER_PORT}/builder/${builderId}`, {}, {
+          await axios.post(`http://localhost:${process.env.BE_SEQUENCER_PORT}/${request.query.type}/${builderId}`, {}, {
             headers: {
               'Content-Type': 'application/json',
               'x-sera-service': "be_sequencer"
             }
           });
 
-          
+
         } catch (error) {
           console.error('Request error:', error);
           reply.status(500).send('Error updating mapping');
@@ -524,7 +524,7 @@ async function routes(fastify, options) {
         }
       }
 
-      if (request.query.type != "event") await axios.post(`http://localhost:${process.env.BE_SEQUENCER_PORT}/builder/${builderId}`, {}, {
+      await axios.post(`http://localhost:${process.env.BE_SEQUENCER_PORT}/${request.query.type}/${builderId}`, {}, {
         headers: {
           'Content-Type': 'application/json',
           'x-sera-service': "be_sequencer"
