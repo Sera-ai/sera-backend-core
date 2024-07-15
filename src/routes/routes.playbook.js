@@ -2,9 +2,32 @@ const fastifyPlugin = require('fastify-plugin');
 const mongoose = require("mongoose");
 
 const EventBuilder = require("../models/models.eventBuilder");
+const seraEvents = require("../models/models.seraEvents");
 
 async function routes(fastify, options) {
-  fastify.get("/manage/playbook", async (request, reply) => {
+  fastify.get("/manage/events", async (request, reply) => {
+    try {
+      const node_data = await seraEvents.find();
+      const transformedData = node_data.map((item) => {
+        let maleableItem = { ...item._doc }
+        delete maleableItem.__v
+        delete maleableItem._id
+        delete maleableItem.id
+        delete maleableItem.data
+        maleableItem.ts = new Date(item.ts).toISOString()
+        return maleableItem
+      });
+
+      console.log(transformedData)
+
+
+      reply.send(normalizeEventInventory(transformedData));
+    } catch (error) {
+      reply.status(500).send({ message: error.message });
+    }
+  });
+
+  fastify.get("/manage/events/playbook", async (request, reply) => {
     try {
       const node_data = await EventBuilder.find();
 
@@ -20,6 +43,18 @@ async function routes(fastify, options) {
     } catch (error) {
       reply.status(500).send({ message: error.message });
     }
+  });
+}
+
+function normalizeEventInventory(eventInventory) {
+  return eventInventory.map(event => {
+    // Create a new object with sorted keys
+    const sortedKeys = Object.keys(event).sort();
+    const sortedEvent = {};
+    sortedKeys.forEach(key => {
+      sortedEvent[key] = event[key];
+    });
+    return sortedEvent;
   });
 }
 

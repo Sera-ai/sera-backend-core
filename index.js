@@ -85,7 +85,7 @@ const app = Fastify();
         console.log(err);
         process.exit(1);
       }
-      seraEvents.create({ event: "sera", type: "seraStart", data: { result: "success", timestamp: new Date().getTime() } })
+      seraEvents.create({ event: "sera", type: "seraStart", srcIp: "127.0.0.1", data: { result: "success", timestamp: new Date().getTime() } })
       console.log(`Builder Started at ${port}`);
     });
   } catch (error) {
