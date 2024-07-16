@@ -227,6 +227,7 @@ async function routes(fastify, options) {
   });
 
   fastify.post("/manage/endpoint/node", async (request, reply) => {
+
     const builderId = request.headers["x-sera-builder"];
     if (builderId) {
       try {
@@ -243,8 +244,6 @@ async function routes(fastify, options) {
           const sendEventNodeId = await struct.save();
           nodeDataToBeSaved.data.struc_id = sendEventNodeId._id;
         }
-
-        console.log(nodeDataToBeSaved);
 
         const nodedata = new Nodes(nodeDataToBeSaved);
         const savedData = await nodedata.save();
