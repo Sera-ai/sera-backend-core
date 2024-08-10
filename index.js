@@ -68,7 +68,9 @@ const app = Fastify();
     console.log("Database Connected");
 
     // Register Fastify plugins
-    await app.register(require('@fastify/cors'), { origin: "*" });
+    await app.register(require('@fastify/cors'), { origin: "*",
+      allowedHeaders: ['x-sera-service', 'x-forwards-for'] 
+     });
     await app.register(require('@fastify/formbody'));
 
     // Register routes with unique prefixes
