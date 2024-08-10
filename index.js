@@ -46,12 +46,11 @@ function connectWebSocket() {
   };
 
   socket.onclose = () => {
-    console.log("WebSocket connection closed. Reconnecting...");
     setTimeout(connectWebSocket, 1000); // Attempt to reconnect after 1 second
   };
 
   socket.onerror = (error) => {
-    console.log("WebSocket error:", error.message);
+    // muting for now console.log("WebSocket error:", error.message);
   };
 }
 
