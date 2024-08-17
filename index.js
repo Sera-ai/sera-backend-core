@@ -17,7 +17,7 @@ const port = process.env.BE_BUILDER_PORT;
 let socket;
 
 function connectWebSocket() {
-  socket = new WebSocket(`ws://localhost:9876/sera-socket-io`);
+  socket = new WebSocket(`ws://localhost:12040/sera-socket-io`);
 
   global.socket = socket;
 

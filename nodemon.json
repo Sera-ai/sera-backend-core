@@ -1,5 +1,5 @@
 {
     "watch": ["index.js", "src"],
     "ext": "js,json",
-    "exec": "node index.js | ts '%Y/%m/%d %H:%M:%S |' | awk '{printf \"%s \", $0} END {print \"\"}' | tee ../.logs/sera-backend-core.log"
+    "exec": "node index.js | ts '%Y/%m/%d %H:%M:%S |' | tee ../.logs/sera-backend-core.log"
 }
