@@ -7,6 +7,7 @@ const Hosts = require("../models/models.hosts");
 const OAS = require("../models/models.oas");
 const Builder = require("../models/models.builder");
 const EventBuilder = require("../models/models.eventBuilder");
+const IntegrationBuilder = require("../models/models.integrations");
 const SeraSettings = require("../models/models.sera_settings");
 const EventStruct = require("../models/models.eventStruc");
 const Nodes = require("../models/models.nodes");
@@ -19,7 +20,7 @@ const {
 } = require("../helpers/helpers.oas");
 
 async function routes(fastify, options) {
-  fastify.get("/manage/endpoint", async (request, reply) => {
+  fastify.get("/manage/builders", async (request, reply) => {
     try {
       let node_data;
       if (request.query.id) {
@@ -38,7 +39,7 @@ async function routes(fastify, options) {
     }
   });
 
-  fastify.post("/manage/endpoint", async (request, reply) => {
+  fastify.post("/manage/builder", async (request, reply) => {
     try {
       const data1 = await Hosts.findById(request.body.host_id);
       const truepath = (request.body.hostname + request.body.endpoint).replace(
@@ -66,7 +67,7 @@ async function routes(fastify, options) {
     }
   });
 
-  fastify.get("/manage/endpoint/builder", async (request, reply) => {
+  fastify.get("/manage/builder", async (request, reply) => {
     let endpoint;
     let parameters = {};
     let response = {};
@@ -203,7 +204,7 @@ async function routes(fastify, options) {
     }
   });
 
-  fastify.post("/manage/endpoint/update", async (request, reply) => {
+  fastify.post("/manage/builder/update", async (request, reply) => {
     try {
       const data1 = await Hosts.find({ forwards: request.body.hostname });
       let host_id = data1[0]._id;
@@ -226,13 +227,12 @@ async function routes(fastify, options) {
     }
   });
 
-  fastify.post("/manage/endpoint/node", async (request, reply) => {
+  fastify.post("/manage/builder/node", async (request, reply) => {
 
     const builderId = request.headers["x-sera-builder"];
     if (builderId) {
       try {
         let nodeDataToBeSaved = request.body;
-        console.log(nodeDataToBeSaved);
 
         if (nodeDataToBeSaved.type == "sendEventNode") {
           const struct = new EventStruct({
@@ -248,7 +248,7 @@ async function routes(fastify, options) {
         const nodedata = new Nodes(nodeDataToBeSaved);
         const savedData = await nodedata.save();
 
-        if (request.query.type != "event") {
+        if (request.query.type == "builder") {
           Builder.findByIdAndUpdate(builderId, {
             $push: { nodes: new mongoose.Types.ObjectId(savedData._id) },
           }).then((e) => {
@@ -258,16 +258,38 @@ async function routes(fastify, options) {
             });
           });
         } else {
-          EventBuilder.findOneAndUpdate(
+          let BuilderModel
+          switch(request.query.type){
+            case "event": BuilderModel = EventBuilder; break;
+            case "integration": BuilderModel = IntegrationBuilder; break;
+          }
+
+          
+          BuilderModel.findOneAndUpdate(
             { slug: builderId },
             {
               $push: { nodes: new mongoose.Types.ObjectId(savedData._id) },
             }
-          ).then((e) => {
-            socket.wsEmit("nodeCreated", {
-              node: savedData,
-              builder: builderId,
-            });
+          ).then(async (e) => {
+
+            if (request.query.type == "integration" && JSON.stringify(savedData).includes("replace-host-string")) {
+              let newSavedData = JSON.parse(JSON.stringify(savedData).replace("replace-host-string", e.hostname));
+
+              savedData.overwrite(newSavedData);
+              const overwrittenSave = await savedData.save(); // Save the modified data to the database
+              
+              socket.wsEmit("nodeCreated", {
+                node: overwrittenSave,
+                builder: builderId,
+              });
+            }else{
+              socket.wsEmit("nodeCreated", {
+                node: savedData,
+                builder: builderId,
+              });
+            }
+
+            
           });
         }
         reply.status(200).send(savedData);
@@ -277,7 +299,7 @@ async function routes(fastify, options) {
     }
   });
 
-  fastify.post("/manage/endpoint/node/delete", async (request, reply) => {
+  fastify.post("/manage/builder/node/delete", async (request, reply) => {
     const builderId = request.headers["x-sera-builder"];
     const nodeId = request.body[0]._id;
     if (!builderId || !nodeId) {
@@ -328,7 +350,7 @@ async function routes(fastify, options) {
     }
   });
 
-  fastify.post("/manage/endpoint/edge", async (request, reply) => {
+  fastify.post("/manage/builder/edge", async (request, reply) => {
     const builderId = request.headers["x-sera-builder"];
     console.log(builderId)
     if (builderId) {
@@ -374,8 +396,14 @@ async function routes(fastify, options) {
           await Edges.deleteMany({ _id: { $in: idsToDelete } });
         }
 
-        if (request.query.type == "event") {
-          await EventBuilder.findOneAndUpdate(
+        if (request.query.type != "builder") {
+          let BuilderDB
+          switch(request.query.type){
+            case "event": BuilderDB = EventBuilder; break;
+            case "integration": BuilderDB = EventBuilder; break;
+          }
+
+          await BuilderDB.findOneAndUpdate(
             { slug: builderId },
             {
               $push: { edges: new mongoose.Types.ObjectId(finalData._id) },
@@ -410,7 +438,7 @@ async function routes(fastify, options) {
             builder: builderId,
           });
 
-          if (request.query.type != "event") {
+          if (request.query.type == "builder") {
             await Builder.findByIdAndUpdate(builderId, {
               $push: { edges: new mongoose.Types.ObjectId(finalData._id) },
             });
@@ -437,7 +465,7 @@ async function routes(fastify, options) {
     }
   });
 
-  fastify.patch("/manage/endpoint/edge", async (request, reply) => {
+  fastify.patch("/manage/builder/edge", async (request, reply) => {
     const builderId = request.headers["x-sera-builder"];
     if (builderId) {
       try {
@@ -453,7 +481,7 @@ async function routes(fastify, options) {
     }
   });
 
-  fastify.post("/manage/endpoint/edge/delete", async (request, reply) => {
+  fastify.post("/manage/builder/edge/delete", async (request, reply) => {
     console.log("deletin")
 
     const builderId = request.headers["x-sera-builder"];
@@ -489,7 +517,7 @@ async function routes(fastify, options) {
         }
       }
 
-      if (request.query.type != "event") {
+      if (request.query.type == "builder") {
         await Builder.findByIdAndUpdate(builderId, {
           $pull: { edges: deletedEdge._id },
         });
@@ -535,6 +563,148 @@ async function routes(fastify, options) {
         builder: builderId,
       });
       reply.status(200).send({ message: "Edge deleted successfully" });
+    } catch (error) {
+      reply.status(500).send({ message: error.message });
+    }
+  });
+
+  fastify.post("/manage/builder/create", async (request, reply) => {
+    try {
+      const host = await Hosts.findById(request.body.host_id);
+      const parameters = await getFields({
+        request,
+        hostname: host.hostname,
+        oas_id: host.oas_spec,
+      });
+
+      console.log(parameters)
+
+      const fields = parameters[0];
+      const resFields = parameters[2];
+      const template = await BuilderTemplate.findOne({ template: true });
+
+      const truepath = (request.body.hostname + request.body.path).replace(
+        host.hostname,
+        ""
+      );
+
+      let editTemplate = JSON.stringify(template);
+
+      const gen1 = generateRandomString();
+      const gen2 = generateRandomString();
+      const gen3 = generateRandomString();
+      const gen4 = generateRandomString();
+
+      editTemplate = editTemplate.replace(/{{host}}/g, host.hostname);
+      editTemplate = editTemplate.replace(/{{method}}/g, request.body.method);
+      editTemplate = editTemplate.replace(/{{path}}/g, truepath);
+
+      editTemplate = editTemplate.replace(/{{gen-1}}/g, gen1);
+      editTemplate = editTemplate.replace(/{{gen-2}}/g, gen2);
+      editTemplate = editTemplate.replace(/{{gen-3}}/g, gen3);
+      editTemplate = editTemplate.replace(/{{gen-4}}/g, gen4);
+      editTemplate = editTemplate.replace(/{{gen-5}}/g, generateRandomString());
+      editTemplate = editTemplate.replace(/{{gen-6}}/g, generateRandomString());
+
+      let finalizedTemplate = JSON.parse(editTemplate);
+
+      Object.keys(fields).forEach((field) => {
+        fields[field].forEach((f) => {
+          const databayoo = {
+            source: gen1,
+            sourceHandle: `${field}.${f.name}`,
+            target: gen2,
+            targetHandle: `${field}.${f.name}`,
+            id: `${gen1}-${gen2}-${f.name}-${generateRandomString()}`,
+            animated: false,
+            style: {
+              stroke: getColor(f.schema["type"]),
+            },
+          };
+
+          finalizedTemplate.edges.push(databayoo);
+        });
+      });
+
+      Object.keys(resFields).forEach((field) => {
+        resFields[field].forEach((f) => {
+          const databayoo2 = {
+            source: gen3,
+            sourceHandle: `${field}.${f.name}`,
+            target: gen4,
+            targetHandle:
+              f.schema["type"] == "null" ? `sera.sera_start` : `${field}.${f.name}`,
+            id: `${gen3}-${gen4}-${f.name}-${generateRandomString()}`,
+            animated: f.schema["type"] == "null" ? true : false,
+            style: {
+              stroke: getColor(f.schema["type"]),
+            },
+          };
+
+          finalizedTemplate.edges.push(databayoo2);
+        });
+      });
+
+      let nodes;
+      let edges;
+
+      try {
+        const nodeSavePromises = finalizedTemplate.nodes.map((node) =>
+          new Nodes(node).save()
+        );
+        const savedNodes = await Promise.all(nodeSavePromises);
+        nodes = savedNodes.map((savedNode) => savedNode._id);
+
+        const edgeSavePromises = finalizedTemplate.edges.map((edge) =>
+          new Edges(edge).save()
+        );
+        const savedEdges = await Promise.all(edgeSavePromises);
+        edges = savedEdges.map((savedEdge) => savedEdge._id);
+      } catch (error) {
+        console.error("Error saving nodes or edges:", error);
+      }
+
+      const data = new Builder({
+        edges,
+        nodes,
+        enabled: true,
+      });
+
+      try {
+        const dataToSave = await data.save();
+        reply.status(200).send(dataToSave);
+      } catch (error) {
+        console.log("e1", error)
+        reply.status(500).send({ message: error.message });
+      }
+    } catch (error) {
+      console.log("e2", error)
+
+      reply.status(500).send({ message: error.message });
+    }
+  });
+
+  fastify.get("/manage/builder/getNode", async (request, reply) => {
+    try {
+      console.log(request.query.id)
+      const node_data = await Nodes.findById(request.query.id);
+      reply.send(node_data);
+    } catch (error) {
+      reply.status(500).send({ message: error.message });
+    }
+  });
+
+  fastify.get("/manage/builder/getNodeStruc", async (request, reply) => {
+    try {
+      const query = { event: request.query.event };
+      if (request.query.type) {
+        query.type = request.query.type;
+        const node_data = await EventStruc.findOne(query);
+        reply.send(node_data);
+      } else {
+        const node_data = await EventStruc.find(query);
+        reply.send(node_data);
+      }
     } catch (error) {
       reply.status(500).send({ message: error.message });
     }
@@ -591,3 +761,71 @@ async function getBuilder(builderId, parameters, response, event = false) {
 
   return { nodes, edges };
 }
+
+
+function getDataFromPath(arr, obj) {
+  let currentObj = obj;
+
+  for (let i = 0; i < arr.length; i++) {
+    const key = arr[i];
+    if (key in currentObj) {
+      currentObj = currentObj[key];
+    } else {
+      return null; // key not found in object
+    }
+  }
+
+  return currentObj; // Return the data from the last key in the array
+}
+
+function generateRandomString(length = 12) {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+  let result = "";
+  for (let i = 0; i < length; i++) {
+    const randomIndex = Math.floor(Math.random() * chars.length);
+    result += chars[randomIndex];
+  }
+  return result;
+}
+
+async function getFields({ request, hostname, oas_id }) {
+  try {
+
+    const path = request.body.path == "" ? "/" : request.body.path
+    const method = request.body.method
+
+    const oas = await OAS.findById(oas_id);
+
+    const oasPathways = [path, method.toLowerCase()];
+
+    const pathwayData = getDataFromPath(oasPathways, oas.paths);
+
+    if (pathwayData) {
+      const api = await SwaggerParser.parse(oas);
+
+      let endpoint = api.paths[path][method.toLocaleLowerCase()];
+      const response = getResponseParameters(endpoint, oas);
+      const parameters = getRequestParameters(endpoint, oas);
+      return [parameters, method, response];
+    } else {
+      return [null, method];
+    }
+  } catch (e) {
+    console.log(e);
+  }
+}
+
+const getColor = (type) => {
+  switch (type) {
+    case "integer":
+      return "#a456e5";
+    case "number":
+      return "#a456e5";
+    case "string":
+      return "#2bb74a";
+    case "array":
+      return "#f1ee07";
+    case "boolean":
+      return "#FF4747";
+  }
+};

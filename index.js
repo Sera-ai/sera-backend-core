@@ -3,17 +3,16 @@ const Fastify = require("fastify");
 const mongoose = require("mongoose");
 const WebSocket = require("ws");
 
-const manageRoutes = require("./src/routes/routes.manage");
-const endpointRoutes = require("./src/routes/routes.endpoint");
-const playbookRoutes = require("./src/routes/routes.playbook");
+const hostRoutes = require("./src/routes/routes.host");
+const builderRoutes = require("./src/routes/routes.builder");
+const integrationRoutes = require("./src/routes/routes.integration");
+const eventRoutes = require("./src/routes/routes.events");
 const searchRoutes = require("./src/routes/routes.search");
 const analyticsRoutes = require("./src/routes/routes.analytics");
-
 const seraEvents = require("./src/models/models.seraEvents")
 
 const mongoString = process.env.DB_HOST;
 const port = process.env.BE_BUILDER_PORT;
-
 let socket;
 
 function connectWebSocket() {
@@ -68,16 +67,23 @@ const app = Fastify();
     console.log("Database Connected");
 
     // Register Fastify plugins
-    await app.register(require('@fastify/cors'), { origin: "*" });
+    // await app.register(require('@fastify/cors'), { origin: "*" });
     await app.register(require('@fastify/formbody'));
-
+    app.setErrorHandler((error, request, reply) => {
+      reply
+          .header("Access-Control-Allow-Origin", "*")
+          .header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Forwarded-For, X-Sera-Service, X-Sera-Builder")
+          .status(500)
+          .send({ error: 'Internal Server Error' });
+  });
     // Register routes with unique prefixes
     app.register(searchRoutes);
-    app.register(manageRoutes);
-    app.register(endpointRoutes);
-    app.register(playbookRoutes);
+    app.register(hostRoutes);
+    app.register(builderRoutes);
+    app.register(eventRoutes);
     app.register(analyticsRoutes);
-
+    app.register(integrationRoutes);
+    
     // Start the server
     app.listen({ port, host: '0.0.0.0' }, (err) => {
       if (err) {

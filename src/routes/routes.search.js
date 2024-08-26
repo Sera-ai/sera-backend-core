@@ -1,5 +1,4 @@
 const fastifyPlugin = require('fastify-plugin');
-const mongoose = require("mongoose");
 
 const Hosts = require("../models/models.hosts");
 const Endpoints = require("../models/models.endpoints");

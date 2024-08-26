@@ -1,18 +1,14 @@
 const fastifyPlugin = require('fastify-plugin');
-const mongoose = require("mongoose");
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
 
 
 const logsDirectory = path.join('/workspace/.logs');
-
 const timestampRegex1 = /\b(\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2})\b/; // YYYY/MM/DD HH:MM:SS
 const timestampRegex2 = /\[(\d{2}\/\w{3}\/\d{4}:\d{2}:\d{2}:\d{2} \+\d{4})\]/; // [24/Jun/2024:21:37:38 +0000]
-
 const TX_LOGS = require("../models/models.tx_logs");
 const seraSettings = require("../models/models.sera_settings");
-
 const { format, subDays, subWeeks, subMonths, subHours, startOfDay, startOfWeek, startOfMonth, startOfHour, isBefore, isAfter, addDays } = require('date-fns');
 
 // Helper function to get the start of the period

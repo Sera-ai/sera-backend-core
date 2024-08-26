@@ -1,5 +1,4 @@
 const fastifyPlugin = require('fastify-plugin');
-const mongoose = require("mongoose");
 
 const EventBuilder = require("../models/models.eventBuilder");
 const seraEvents = require("../models/models.seraEvents");
