@@ -9,7 +9,7 @@ const Builder = require("../models/models.builder");
 const EventBuilder = require("../models/models.eventBuilder");
 const IntegrationBuilder = require("../models/models.integrations");
 const SeraSettings = require("../models/models.sera_settings");
-const EventStruct = require("../models/models.eventStruc");
+const EventStruc = require("../models/models.eventStruc");
 const Nodes = require("../models/models.nodes");
 const Edges = require("../models/models.edges");
 const Endpoints = require("../models/models.endpoints");
@@ -235,7 +235,7 @@ async function routes(fastify, options) {
         let nodeDataToBeSaved = request.body;
 
         if (nodeDataToBeSaved.type == "sendEventNode") {
-          const struct = new EventStruct({
+          const struct = new EventStruc({
             event: "builder-default",
             type: "new Event",
             description: "new event",
@@ -314,7 +314,7 @@ async function routes(fastify, options) {
       }
 
       if (deletedNode.type == "sendEventNode") {
-        await EventStruct.findByIdAndDelete(
+        await EventStruc.findByIdAndDelete(
           new mongoose.Types.ObjectId(deletedNode.data.struc_id)
         );
       }
@@ -366,7 +366,7 @@ async function routes(fastify, options) {
           const node = await Nodes.findOne({ id: target });
           if (node) {
             const updateKey = `data.${request.body.sourceHandle}`;
-            await EventStruct.findByIdAndUpdate(
+            await EventStruc.findByIdAndUpdate(
               node.data.struc_id,
               {
                 $set: {
@@ -503,7 +503,7 @@ async function routes(fastify, options) {
         const node = await Nodes.findOne({ id: deletedEdge.target });
         if (node) {
           const updateKey = `data.${deletedEdge.sourceHandle}`;
-          await EventStruct.findByIdAndUpdate(
+          await EventStruc.findByIdAndUpdate(
             node.data.struc_id,
             {
               $unset: {
