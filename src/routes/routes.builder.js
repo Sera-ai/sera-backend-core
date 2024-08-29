@@ -7,6 +7,7 @@ const Hosts = require("../models/models.hosts");
 const OAS = require("../models/models.oas");
 const Builder = require("../models/models.builder");
 const EventBuilder = require("../models/models.eventBuilder");
+const BuilderTemplate = require("../models/models.builder_template");
 const IntegrationBuilder = require("../models/models.integrations");
 const SeraSettings = require("../models/models.sera_settings");
 const EventStruc = require("../models/models.eventStruc");
