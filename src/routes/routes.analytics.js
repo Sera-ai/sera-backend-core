@@ -2,215 +2,72 @@ const fastifyPlugin = require('fastify-plugin');
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
-
-
 const logsDirectory = path.join('/workspace/.logs');
 const timestampRegex1 = /\b(\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2})\b/; // YYYY/MM/DD HH:MM:SS
 const timestampRegex2 = /\[(\d{2}\/\w{3}\/\d{4}:\d{2}:\d{2}:\d{2} \+\d{4})\]/; // [24/Jun/2024:21:37:38 +0000]
 const TX_LOGS = require("../models/models.tx_logs");
 const seraSettings = require("../models/models.sera_settings");
-const { format, subDays, subWeeks, subMonths, subHours, startOfDay, startOfWeek, startOfMonth, startOfHour, isBefore, isAfter, addDays } = require('date-fns');
 
-// Helper function to get the start of the period
-const getStartOfPeriod = (date, period) => {
-  switch (period) {
-    case 'hourly':
-      return startOfHour(date);
-    case 'daily':
-      return startOfDay(date);
-    case 'weekly':
-      return startOfWeek(date, { weekStartsOn: 1 }); // Assuming week starts on Monday
-    case 'monthly':
-      return startOfMonth(date);
-    default:
-      return startOfMonth(date);
-  }
-};
+const {
+  organizeData,
+  createSankeyData,
+  createRadarChartData,
+  getHostData
+} = require("../helpers/helpers.analytics")
 
-// Helper function to get the previous periods
-const getPreviousPeriods = (date, period, count) => {
-  const periods = [];
-  let current = date;
-  for (let i = 0; i < count; i++) {
-    periods.push(getStartOfPeriod(current, period));
-    switch (period) {
-      case 'hourly':
-        current = subHours(current, 1);
-        break;
-      case 'daily':
-        current = subDays(current, 1);
-        break;
-      case 'weekly':
-        current = subWeeks(current, 1);
-        break;
-      case 'monthly':
-        current = subMonths(current, 1);
-        break;
-      default:
-        current = subMonths(current, 1);
-    }
-  }
-  return periods.reverse();
-};
-
-const organizeData = (node_data, period, count = 5) => {
-  const currentDate = new Date();
-  const periods = getPreviousPeriods(currentDate, period, count);
-  const dataMap = {};
-
-  // Initialize dataMap for each period
-  periods.forEach((startOfPeriod, index) => {
-    const endOfPeriod = index < periods.length - 1 ? periods[index + 1] : new Date();
-    console.log(startOfPeriod, endOfPeriod)
-    const name = format(startOfPeriod, "yyyy-MM-dd'T'HH:mm:ss.SSSX");
-    dataMap[name] = { name, req: 0, error: 0 };
-
-    node_data.forEach(item => {
-      const date = new Date(item.ts * 1000);
-
-      if (isAfter(date, startOfPeriod) && isBefore(date, endOfPeriod)) {
-        console.log(date, startOfPeriod, endOfPeriod)
-        console.log(date, isAfter(date, startOfPeriod))
-        console.log(date, isBefore(date, endOfPeriod))
-
-        dataMap[name].req += 1;
-        if (item.response.status >= 400) {
-          dataMap[name].error += 1;
-        }
-      }
-    });
-  });
-
-  console.log(dataMap)
-
-  return Object.values(dataMap);
-};
-
-const createSankeyData = (node_data) => {
-  const nodes = [];
-  const nodeIndex = {};
-  const links = [];
-  const linkIndex = {};
-
-  // Helper function to get or create a node index
-  const getNodeIndex = (name) => {
-    if (nodeIndex[name] === undefined) {
-      nodeIndex[name] = nodes.length;
-      nodes.push({ name, index: nodes.length });
-    }
-    return nodeIndex[name];
-  };
-
-  // Helper function to get or create a link index
-  const getLinkIndex = (source, target) => {
-    const key = `${source}-${target}`;
-    if (linkIndex[key] === undefined) {
-      linkIndex[key] = links.length;
-      links.push({ source, target, value: 1 });
-    } else {
-      links[linkIndex[key]].value += 1;
-    }
-    return linkIndex[key];
-  };
-
-  node_data.forEach(item => {
-    const ip = item.session_analytics.ip_address;
-    const apiType = "API - JSON";
-    const hostname = item.hostname;
-    const path = item.path;
-    const method = item.method;
-
-    const ipIndex = getNodeIndex(ip);
-    const apiTypeIndex = getNodeIndex(apiType);
-    const hostnameIndex = getNodeIndex(hostname);
-    const pathIndex = getNodeIndex(path);
-    const methodIndex = getNodeIndex(method);
-
-    getLinkIndex(ipIndex, apiTypeIndex);
-    getLinkIndex(apiTypeIndex, hostnameIndex);
-    getLinkIndex(hostnameIndex, pathIndex);
-    getLinkIndex(pathIndex, methodIndex);
-  });
-
-  return { nodes, links };
-};
-
-const createRadarChartData = (node_data, startTimestamp, endTimestamp, sera_settings) => {
-  const totalRequests = node_data.length;
-  const successfulRequests = node_data.filter(item => item.response.status === 200).length;
-  const uptime = (totalRequests - node_data.filter(item => item.response.status >= 400).length) / totalRequests * 100;
-  const latency = node_data.reduce((acc, item) => acc + item.response_time, 0) / totalRequests;
-  const timePeriodInSeconds = endTimestamp - startTimestamp;
-  const rps = (totalRequests / timePeriodInSeconds) * 100;
-  const successRate = (successfulRequests / totalRequests) * 100;
-
-  const { Builders, Inventory, Latency, RPS, Success, Uptime } = sera_settings.systemSettings.seraSettings.healthMetrics;
-
-  return [
-    {
-      subject: "RPS",
-      description: "Percent of overall RPS",
-      actual: rps.toFixed(5) + " rps",
-      value: (parseFloat(rps.toFixed(5)) / parseFloat(RPS)) * 100,
-      cap: 100,
-    },
-    {
-      subject: "Uptime",
-      description: "Percent of time since last restart that this has been available",
-      actual: uptime / Uptime * 100 + "%",
-      value: uptime / Uptime * 100,
-      cap: 100,
-    },
-    {
-      subject: "Success",
-      description: "Percent of responses that are 200 (Status Ok)",
-      actual: successRate + "%",
-      value: successRate,
-      cap: 100,
-    },
-    {
-      subject: "Inventory",
-      actual: "100%",
-      description: "Percent of OAS documentation that have descriptions",
-      value: 100,
-      cap: Inventory,
-    },
-    {
-      subject: "Builders",
-      actual: "100%",
-      description: "Percent of endpoints that have builders setup",
-      value: 100,
-      cap: Builders,
-    },
-    {
-      subject: "Latency",
-      actual: latency.toFixed(2) + "ms",
-      description: `Average Latency of requests that are above ${Latency}ms`,
-      value: (Latency / latency * 100) > 100 ? 100 : parseFloat((Latency / latency * 100).toFixed(2)),
-      cap: 100,
-    }
-  ];
-};
-
-const getHostData = (nodeData) => {
-  const details = {
-    Status: "Active",
-    "Endpoint Type": "REST API",
-    Methods: [...new Set(nodeData.map(entry => entry.method).filter(Boolean))],
-    Protocols: [...new Set(nodeData.map(entry => entry.ssl_analytics?.protocol).filter(Boolean))],
-    Encryption: [...new Set(nodeData.flatMap(entry => entry.ssl_analytics?.cipher).filter(Boolean))],
-    Authentication: [...new Set(nodeData.map(entry => entry.session_analytics?.auth_type).filter(Boolean))],
-  };
-
-  const statistics = {
-    Requests: nodeData.length.toString(),
-    "Avg. Response": (nodeData.reduce((sum, entry) => sum + (entry.response_time ?? 0), 0) / nodeData.length).toFixed(2) + "ms",
-    "Failed Req": nodeData.filter(entry => entry.response?.status >= 400).length.toString(),
-    "Unique Clients": [...new Set(nodeData.map(entry => entry.session_analytics?.ip_address).filter(Boolean))].length.toString(),
-  };
-
-  return { details, statistics };
-};
+/**
+ * Registers routes for managing analytics, logs, usage, and host data with the Fastify server.
+ *
+ * This function sets up several endpoints to retrieve analytics, logs, usage statistics, and host data, with options to filter based on time periods, hosts, paths, and methods.
+ * The available routes are:
+ * - GET `/manage/analytics`: Retrieves various charts (area, sankey, radar) based on transaction logs and specified time periods.
+ * - GET `/manage/logs`: Retrieves system and Sera logs, filtering and extracting log data based on time periods and log types.
+ * - GET `/manage/usage`: Retrieves usage statistics based on hosts, paths, methods, and specified time periods.
+ * - GET `/manage/hostdata`: Retrieves host-related data, filtered by hosts, paths, and methods.
+ *
+ * @async
+ * @function AnalyticRoutes
+ * @param {FastifyInstance} fastify - The Fastify instance to register the routes on.
+ * @param {Object} options - The options object for route configuration.
+ *
+ * @route GET /manage/analytics
+ * @description Retrieves endpoint analytics, including area, sankey, and radar charts, based on the specified time period and host.
+ * @param {Object} request.query - The query parameters for retrieving analytics.
+ * @param {string} request.query.period - The time period for the analytics (e.g., hourly, daily, weekly, monthly, custom).
+ * @param {string} [request.query.host] - The hostname to filter analytics.
+ * @param {string} [request.query.startDate] - The start date for custom period analytics (required for custom period).
+ * @param {string} [request.query.endDate] - The end date for custom period analytics (required for custom period).
+ * @returns {Object} The charts data for the specified period, including endpoint area, sankey, and radar charts.
+ * @throws {Error} If an error occurs while retrieving the analytics data.
+ *
+ * @route GET /manage/logs
+ * @description Retrieves system and Sera logs, filtering by log type and extracting timestamped log data from the last 100 lines.
+ * @param {Object} request.query - The query parameters for retrieving logs.
+ * @param {string} request.query.period - The time period for retrieving logs.
+ * @param {string} request.query.type - The type of logs to retrieve (e.g., seraLogs, systemLogs).
+ * @returns {Array<Object>} A list of log entries, each with a timestamp, type, and message.
+ * @throws {Error} If an error occurs while retrieving the log data.
+ *
+ * @route GET /manage/usage
+ * @description Retrieves usage statistics, filtering by hosts, paths, methods, and time periods.
+ * @param {Object} request.query - The query parameters for retrieving usage data.
+ * @param {string} request.query.period - The time period for the usage statistics (e.g., hourly, daily, weekly, monthly, custom).
+ * @param {string} [request.query.host] - The hostname to filter usage data.
+ * @param {string} [request.query.path] - The path to filter usage data.
+ * @param {string} [request.query.method] - The HTTP method to filter usage data.
+ * @returns {Object} The usage graph data for the specified period.
+ * @throws {Error} If an error occurs while retrieving the usage data.
+ *
+ * @route GET /manage/hostdata
+ * @description Retrieves detailed host data, filtering by hosts, paths, methods, and time periods.
+ * @param {Object} request.query - The query parameters for retrieving host data.
+ * @param {string} request.query.period - The time period for the host data (e.g., hourly, daily, weekly, monthly, custom).
+ * @param {string} [request.query.host] - The hostname to filter host data.
+ * @param {string} [request.query.path] - The path to filter host data.
+ * @param {string} [request.query.method] - The HTTP method to filter host data.
+ * @returns {Object} The filtered host data for the specified period.
+ * @throws {Error} If an error occurs while retrieving the host data.
+ */
 
 // Example usage in your route
 async function routes(fastify, options) {

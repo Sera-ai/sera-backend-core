@@ -6,13 +6,71 @@ const DNS = require("../models/models.dns");
 
 const Converter = require("api-spec-converter");
 const yaml = require("js-yaml");
-const SwaggerParser = require("@apidevtools/swagger-parser");
-const {
-  getRequestParameters,
-  getResponseParameters,
-} = require("../helpers/helpers.oas");
+
+const { generateRandomString } = require("../helpers/helpers.general")
+
+
+
+/**
+ * Registers routes for managing hosts with the Fastify server.
+ *
+ * This function sets up several endpoints to create, retrieve, update, and delete hosts, along with their corresponding OpenAPI Specification (OAS) and DNS configurations.
+ * The available routes are:
+ * - POST `/manage/host`: Creates a new host with OAS and DNS configuration.
+ * - GET `/manage/host`: Retrieves host information (either a specific host or a list of hosts).
+ * - PATCH `/manage/host`: Updates specific fields in an existing host.
+ * - GET `/manage/host/oas`: Retrieves the OAS specification for a given host.
+ * - GET `/manage/host/dns`: Retrieves the DNS configuration for a given host.
+ *
+ * @async
+ * @function HostRoutes
+ * @param {FastifyInstance} fastify - The Fastify instance to register the routes on.
+ * @param {Object} options - The options object for route configuration.
+ *
+ * @route POST /manage/host
+ * @description Creates a new host with OAS and DNS configuration.
+ * @param {Object} request.body - The request body containing host information.
+ * @param {string} [request.body.hostname] - The hostname for the new host.
+ * @param {string} [request.body.oas] - The OpenAPI specification in JSON or YAML format.
+ * @param {number} [request.body.port=80] - The port for the new host.
+ * @returns {Object} The saved host information, including OAS and DNS configuration.
+ * @throws {Error} If the OAS is invalid or an error occurs while saving data.
+ *
+ * @route GET /manage/host
+ * @description Retrieves host information. Can retrieve a specific host by `id` or return a list of up to 100 hosts.
+ * @param {Object} request.query - The query parameters for retrieving hosts.
+ * @param {string} [request.query.id] - The ID of the host to retrieve.
+ * @returns {Array<Object>} The list of hosts or the specific host details.
+ * @throws {Error} If an error occurs while retrieving the host data.
+ *
+ * @route PATCH /manage/host
+ * @description Updates the specified field in a host's configuration.
+ * @param {Object} request.body - The request body containing update data.
+ * @param {string} request.body.host_id - The ID of the host to update.
+ * @param {string} request.body.field - The specific field in `sera_config` to update.
+ * @param {any} request.body.key - The new value to set for the field.
+ * @returns {Object} The updated host information.
+ * @throws {Error} If the host is not found or an error occurs during the update.
+ *
+ * @route GET /manage/host/oas
+ * @description Retrieves the OpenAPI specification (OAS) for a given host.
+ * @param {Object} request.query - The query parameters for retrieving OAS data.
+ * @param {string} [request.query.host] - The hostname of the host to retrieve the OAS for.
+ * @returns {Object} The OAS specification for the given host or all OAS data if no host is specified.
+ * @throws {Error} If an error occurs while retrieving the OAS data.
+ *
+ * @route GET /manage/host/dns
+ * @description Retrieves the DNS configuration for a given host.
+ * @param {Object} request.query - The query parameters for retrieving DNS data.
+ * @param {string} request.query.host - The hostname of the host to retrieve the DNS configuration for.
+ * @returns {Object} The DNS configuration for the given host.
+ * @throws {Error} If the host is not found or an error occurs while retrieving the DNS data.
+ */
+
+
 
 async function routes(fastify, options) {
+
   fastify.post("/manage/host", async (request, reply) => {
     let oas;
     let oasJsonFinal = {};
@@ -222,69 +280,3 @@ async function routes(fastify, options) {
 
 module.exports = fastifyPlugin(routes);
 
-function getDataFromPath(arr, obj) {
-  let currentObj = obj;
-
-  for (let i = 0; i < arr.length; i++) {
-    const key = arr[i];
-    if (key in currentObj) {
-      currentObj = currentObj[key];
-    } else {
-      return null; // key not found in object
-    }
-  }
-
-  return currentObj; // Return the data from the last key in the array
-}
-
-function generateRandomString(length = 12) {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
-  let result = "";
-  for (let i = 0; i < length; i++) {
-    const randomIndex = Math.floor(Math.random() * chars.length);
-    result += chars[randomIndex];
-  }
-  return result;
-}
-
-async function getFields({ request, hostname, oas_id }) {
-  try {
-
-    const path = request.body.path == "" ? "/" : request.body.path
-    const method = request.body.method
-
-    const oas = await OAS.findById(oas_id);
-
-    const oasPathways = [path, method.toLowerCase()];
-
-    const pathwayData = getDataFromPath(oasPathways, oas.paths);
-
-    if (pathwayData) {
-      const api = await SwaggerParser.parse(oas);
-
-      let endpoint = api.paths[path][method.toLocaleLowerCase()];
-      const response = getResponseParameters(endpoint, oas);
-      const parameters = getRequestParameters(endpoint, oas);
-      return [parameters, method, response];
-    } else {
-      return [null, method];
-    }
-  } catch (e) {
-    console.log(e);
-  }
-}
-
-const getColor = (type) => {
-  switch (type) {
-    case "integer":
-      return "#a456e5";
-    case "number":
-      return "#a456e5";
-    case "string":
-      return "#2bb74a";
-    case "array":
-      return "#f1ee07";
-    case "boolean":
-      return "#FF4747";
-  }
-};

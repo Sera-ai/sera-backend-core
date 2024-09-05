@@ -3,6 +3,40 @@ const fastifyPlugin = require('fastify-plugin');
 const EventBuilder = require("../models/models.eventBuilder");
 const seraEvents = require("../models/models.seraEvents");
 
+/**
+ * Registers routes for managing events with the Fastify server.
+ *
+ * This function sets up endpoints to create, retrieve, and list events, including playbooks. The available routes are:
+ * - GET `/manage/events`: Retrieves a list of events or a specific event by ID.
+ * - POST `/manage/events`: Creates a new event with the provided data.
+ * - GET `/manage/events/playbook`: Retrieves a list of event playbooks.
+ *
+ * @async
+ * @function EventRoutes
+ * @param {FastifyInstance} fastify - The Fastify instance to register the routes on.
+ * @param {Object} options - The options object for route configuration.
+ *
+ * @route GET /manage/events
+ * @description Retrieves a list of events or a specific event based on the provided query parameters. If no `id` is provided, sensitive data is removed from the result.
+ * @param {Object} request.query - The query parameters for retrieving events.
+ * @param {string} [request.query.id] - The ID of the specific event to retrieve.
+ * @returns {Array<Object>} A list of events, each containing its transformed fields.
+ * @throws {Error} If an error occurs while retrieving the events.
+ *
+ * @route POST /manage/events
+ * @description Creates a new event based on the provided event name and data.
+ * @param {Object} request.body - The request body containing event details.
+ * @param {string} request.body.event_name - The name of the event.
+ * @param {Object} request.body.data - The data associated with the event.
+ * @returns {string} A confirmation message indicating the event has been created.
+ * @throws {Error} If an error occurs while creating the event.
+ *
+ * @route GET /manage/events/playbook
+ * @description Retrieves a list of available event playbooks, each with its name, type, and enabled status.
+ * @returns {Array<Object>} A list of playbooks with links to their respective details.
+ * @throws {Error} If an error occurs while retrieving the playbooks.
+ */
+
 async function routes(fastify, options) {
   fastify.get("/manage/events", async (request, reply) => {
     try {

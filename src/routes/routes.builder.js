@@ -20,6 +20,125 @@ const {
   getResponseParameters,
 } = require("../helpers/helpers.oas");
 
+const { getBuilder, getColor, getFields, generateRandomString } = require("../helpers/helpers.general")
+
+/**
+ * Registers routes for managing builders and associated entities in the Fastify server.
+ *
+ * This function sets up multiple endpoints for creating, retrieving, and managing builder configurations, including nodes, edges, and endpoints.
+ * The available routes are:
+ * - GET `/manage/builders`: Retrieves builder data with optional filtering by ID.
+ * - POST `/manage/builder`: Creates a new builder endpoint.
+ * - GET `/manage/builder`: Retrieves builder details by path and method.
+ * - POST `/manage/builder/update`: Updates an existing builder.
+ * - POST `/manage/builder/node`: Creates a new node for a builder.
+ * - POST `/manage/builder/node/delete`: Deletes a node from a builder.
+ * - POST `/manage/builder/edge`: Creates a new edge for a builder.
+ * - PATCH `/manage/builder/edge`: Updates an existing edge in a builder.
+ * - POST `/manage/builder/edge/delete`: Deletes an edge from a builder.
+ * - POST `/manage/builder/create`: Creates a builder template with nodes and edges.
+ * - GET `/manage/builder/getNode`: Retrieves a node by its ID.
+ * - GET `/manage/builder/getNodeStruc`: Retrieves event structure data by event and type.
+ *
+ * @async
+ * @function BuilderRoutes
+ * @param {FastifyInstance} fastify - The Fastify instance to register the routes on.
+ * @param {Object} options - The options object for route configuration.
+ *
+ * @route GET /manage/builders
+ * @description Retrieves builder data, either all or filtered by ID.
+ * @param {Object} request.query - The query parameters for filtering builder data.
+ * @param {string} [request.query.id] - The ID of the builder to retrieve.
+ * @returns {Array<Object>} An array of builder data, populated with host and builder IDs.
+ * @throws {Error} If an error occurs while retrieving builder data.
+ *
+ * @route POST /manage/builder
+ * @description Creates a new builder endpoint with the provided host and method data.
+ * @param {Object} request.body - The request body containing host and endpoint data.
+ * @param {string} request.body.host_id - The ID of the host associated with the builder.
+ * @param {string} request.body.hostname - The hostname for the endpoint.
+ * @param {string} request.body.endpoint - The endpoint path.
+ * @param {string} request.body.method - The HTTP method for the endpoint.
+ * @returns {Object} The saved builder endpoint data.
+ * @throws {Error} If an error occurs while creating the builder.
+ *
+ * @route GET /manage/builder
+ * @description Retrieves builder data based on the provided path and method.
+ * @param {Object} request.query - The query parameters for retrieving the builder.
+ * @param {string} [request.query.path] - The path to the endpoint.
+ * @param {string} [request.query.event] - The event to filter builders.
+ * @returns {Object} The builder details, including OAS, nodes, and edges.
+ * @throws {Error} If the builder, host, or endpoint is not found.
+ *
+ * @route POST /manage/builder/update
+ * @description Updates an existing builder's endpoint.
+ * @param {Object} request.body - The request body containing the host and builder data.
+ * @param {string} request.body.hostname - The hostname to update.
+ * @param {string} request.body.endpoint - The endpoint to update.
+ * @param {string} request.body.method - The HTTP method for the update.
+ * @param {string} request.body.builder_id - The ID of the builder to update.
+ * @returns {Object} The updated builder endpoint data.
+ * @throws {Error} If an error occurs while updating the builder.
+ *
+ * @route POST /manage/builder/node
+ * @description Creates a new node for the builder and saves it to the database.
+ * @param {Object} request.body - The request body containing the node data.
+ * @param {string} [request.query.type] - The type of the builder (e.g., builder, event, integration).
+ * @param {string} request.headers["x-sera-builder"] - The builder ID from the headers.
+ * @returns {Object} The saved node data.
+ * @throws {Error} If an error occurs while creating the node.
+ *
+ * @route POST /manage/builder/node/delete
+ * @description Deletes a node from the builder by its ID.
+ * @param {Object} request.body - The request body containing the node data.
+ * @param {string} request.headers["x-sera-builder"] - The builder ID from the headers.
+ * @returns {string} A success message if the node is deleted.
+ * @throws {Error} If the node or builder is not found.
+ *
+ * @route POST /manage/builder/edge
+ * @description Creates a new edge for the builder and handles node connections.
+ * @param {Object} request.body - The request body containing edge data.
+ * @param {string} request.query.type - The type of the builder (e.g., builder, event).
+ * @param {string} request.headers["x-sera-builder"] - The builder ID from the headers.
+ * @returns {Object} The saved edge data.
+ * @throws {Error} If an error occurs while creating the edge.
+ *
+ * @route PATCH /manage/builder/edge
+ * @description Updates an existing edge in the builder by its ID.
+ * @param {Object} request.body - The request body containing the updated edge data.
+ * @param {string} request.headers["x-sera-builder"] - The builder ID from the headers.
+ * @returns {Object} The updated edge data.
+ * @throws {Error} If an error occurs while updating the edge.
+ *
+ * @route POST /manage/builder/edge/delete
+ * @description Deletes an edge from the builder by its ID.
+ * @param {Object} request.body - The request body containing the edge data.
+ * @param {string} request.headers["x-sera-builder"] - The builder ID from the headers.
+ * @returns {string} A success message if the edge is deleted.
+ * @throws {Error} If the edge or builder is not found.
+ *
+ * @route POST /manage/builder/create
+ * @description Creates a new builder with nodes and edges based on a template.
+ * @param {Object} request.body - The request body containing host and path data.
+ * @returns {Object} The saved builder data.
+ * @throws {Error} If an error occurs while creating the builder.
+ *
+ * @route GET /manage/builder/getNode
+ * @description Retrieves a specific node by its ID.
+ * @param {Object} request.query - The query parameters for retrieving the node.
+ * @param {string} request.query.id - The ID of the node to retrieve.
+ * @returns {Object} The node data.
+ * @throws {Error} If the node is not found.
+ *
+ * @route GET /manage/builder/getNodeStruc
+ * @description Retrieves event structure data based on the provided event and type.
+ * @param {Object} request.query - The query parameters for retrieving the structure.
+ * @param {string} request.query.event - The event to filter the structure.
+ * @param {string} [request.query.type] - The type of event structure to retrieve.
+ * @returns {Object|Array<Object>} The event structure data.
+ * @throws {Error} If an error occurs while retrieving the event structure data.
+ */
+
 async function routes(fastify, options) {
   fastify.get("/manage/builders", async (request, reply) => {
     try {
@@ -713,120 +832,3 @@ async function routes(fastify, options) {
 }
 
 module.exports = fastifyPlugin(routes);
-
-async function getBuilder(builderId, parameters, response, event = false) {
-  const inventoryRes = event
-    ? await EventBuilder.findOne({ slug: builderId })
-    : await Builder.findById(builderId);
-
-  if (!inventoryRes) {
-    console.log("Builder inventory not found");
-    return;
-  }
-
-  const nodeIds = inventoryRes.nodes.map(
-    (node) => new mongoose.Types.ObjectId(node._id)
-  );
-  const edgeIds = inventoryRes.edges.map(
-    (edge) => new mongoose.Types.ObjectId(edge._id)
-  );
-
-  const nodes = await Nodes.find({
-    _id: { $in: nodeIds },
-  });
-
-  nodes.forEach((node) => {
-    if (node?.data?.headerType) {
-      if (node.data.headerType == 1) {
-        node.data.out = parameters;
-      } else if (node.data.headerType == 2) {
-        node.data.in = parameters;
-      } else if (node.data.headerType == 3) {
-        node.data.out = response;
-      } else if (node.data.headerType == 4) {
-        let copyResponse = JSON.parse(JSON.stringify(response));
-        delete copyResponse["Status Codes"];
-        node.data.in = copyResponse;
-      }
-    }
-  });
-
-  const edges = (
-    await Edges.find({
-      _id: { $in: edgeIds },
-    }).lean()
-  ).map((edge) => ({
-    ...edge,
-    id: edge._id.toString(),
-  }));
-
-  return { nodes, edges };
-}
-
-
-function getDataFromPath(arr, obj) {
-  let currentObj = obj;
-
-  for (let i = 0; i < arr.length; i++) {
-    const key = arr[i];
-    if (key in currentObj) {
-      currentObj = currentObj[key];
-    } else {
-      return null; // key not found in object
-    }
-  }
-
-  return currentObj; // Return the data from the last key in the array
-}
-
-function generateRandomString(length = 12) {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
-  let result = "";
-  for (let i = 0; i < length; i++) {
-    const randomIndex = Math.floor(Math.random() * chars.length);
-    result += chars[randomIndex];
-  }
-  return result;
-}
-
-async function getFields({ request, hostname, oas_id }) {
-  try {
-
-    const path = request.body.path == "" ? "/" : request.body.path
-    const method = request.body.method
-
-    const oas = await OAS.findById(oas_id);
-
-    const oasPathways = [path, method.toLowerCase()];
-
-    const pathwayData = getDataFromPath(oasPathways, oas.paths);
-
-    if (pathwayData) {
-      const api = await SwaggerParser.parse(oas);
-
-      let endpoint = api.paths[path][method.toLocaleLowerCase()];
-      const response = getResponseParameters(endpoint, oas);
-      const parameters = getRequestParameters(endpoint, oas);
-      return [parameters, method, response];
-    } else {
-      return [null, method];
-    }
-  } catch (e) {
-    console.log(e);
-  }
-}
-
-const getColor = (type) => {
-  switch (type) {
-    case "integer":
-      return "#a456e5";
-    case "number":
-      return "#a456e5";
-    case "string":
-      return "#2bb74a";
-    case "array":
-      return "#f1ee07";
-    case "boolean":
-      return "#FF4747";
-  }
-};

@@ -1,17 +1,53 @@
 const fastifyPlugin = require('fastify-plugin');
-const mongoose = require("mongoose");
-const axios = require("axios");
-const SwaggerParser = require("@apidevtools/swagger-parser");
-
-const OAS = require("../models/models.oas");
 const IntegrationBuilder = require("../models/models.integrations");
 const Nodes = require("../models/models.nodes");
 const Edges = require("../models/models.edges");
+const OAS = require("../models/models.oas");
+const { stringToSlug, getBuilder } = require("../helpers/helpers.general")
 
-const {
-  getRequestParameters,
-  getResponseParameters,
-} = require("../helpers/helpers.oas");
+
+/**
+ * Registers routes for managing builder integrations with the Fastify server.
+ *
+ * This function sets up several endpoints to create, retrieve, and list builder integrations, along with their corresponding nodes and edges.
+ * The available routes are:
+ * - POST `/manage/builder/integration`: Creates a new builder integration.
+ * - GET `/manage/builder/integration`: Retrieves the details of a specific builder integration by slug.
+ * - GET `/manage/builder/integrations`: Lists all available builder integrations.
+ * - GET `/manage/builder/integration/plugins`: Lists all plugins (nodes) associated with integrations.
+ *
+ * @async
+ * @function IntegrationRoutes
+ * @param {FastifyInstance} fastify - The Fastify instance to register the routes on.
+ * @param {Object} options - The options object for route configuration.
+ *
+ * @route POST /manage/builder/integration
+ * @description Creates a new builder integration based on the provided name and hostname.
+ * @param {Object} request.body - The request body containing the builder integration details.
+ * @param {string} request.body.name - The name of the integration (required).
+ * @param {string} [request.body.hostname] - The hostname of the integration (optional).
+ * @returns {Object} The slug of the newly created integration.
+ * @throws {Error} If the required parameters are missing or the name is duplicated.
+ *
+ * @route GET /manage/builder/integration
+ * @description Retrieves the nodes and edges of a specific builder integration by its slug.
+ * @param {Object} request.query - The query parameters for retrieving the integration.
+ * @param {string} request.query.slug - The slug of the integration to retrieve.
+ * @returns {Object} The nodes and edges associated with the specified integration.
+ * @throws {Error} If the integration is not found or an error occurs while retrieving the data.
+ *
+ * @route GET /manage/builder/integrations
+ * @description Retrieves a list of all builder integrations.
+ * @returns {Array<Object>} An array of integrations, each containing the name, type, slug, and enabled status.
+ * @throws {Error} If an error occurs while retrieving the integrations.
+ *
+ * @route GET /manage/builder/integration/plugins
+ * @description Retrieves all the nodes (plugins) associated with builder integrations.
+ * @returns {Array<Object>} An array of plugins (nodes), each containing the name, type, and ID.
+ * @throws {Error} If an error occurs while retrieving the plugins.
+ */
+
+
 
 async function routes(fastify, options) {
   fastify.post("/manage/builder/integration", async (request, reply) => {
@@ -125,126 +161,3 @@ async function routes(fastify, options) {
 }
 
 module.exports = fastifyPlugin(routes);
-
-async function getBuilder(builderId, parameters, response) {
-  const inventoryRes = await IntegrationBuilder.findOne({ slug: builderId })
-
-  if (!inventoryRes) {
-    console.log("Builder inventory not found");
-    return;
-  }
-
-  const nodeIds = inventoryRes.nodes.map(
-    (node) => new mongoose.Types.ObjectId(node._id)
-  );
-  const edgeIds = inventoryRes.edges.map(
-    (edge) => new mongoose.Types.ObjectId(edge._id)
-  );
-
-  const nodes = await Nodes.find({
-    _id: { $in: nodeIds },
-  });
-
-  nodes.forEach((node) => {
-    if (node?.data?.headerType) {
-      if (node.data.headerType == 1) {
-        node.data.out = parameters;
-      } else if (node.data.headerType == 2) {
-        node.data.in = parameters;
-      } else if (node.data.headerType == 3) {
-        node.data.out = response;
-      } else if (node.data.headerType == 4) {
-        let copyResponse = JSON.parse(JSON.stringify(response));
-        delete copyResponse["Status Codes"];
-        node.data.in = copyResponse;
-      }
-    }
-  });
-
-  const edges = (
-    await Edges.find({
-      _id: { $in: edgeIds },
-    }).lean()
-  ).map((edge) => ({
-    ...edge,
-    id: edge._id.toString(),
-  }));
-
-  return { nodes, edges };
-}
-
-function getDataFromPath(arr, obj) {
-  let currentObj = obj;
-
-  for (let i = 0; i < arr.length; i++) {
-    const key = arr[i];
-    if (key in currentObj) {
-      currentObj = currentObj[key];
-    } else {
-      return null; // key not found in object
-    }
-  }
-
-  return currentObj; // Return the data from the last key in the array
-}
-
-function generateRandomString(length = 12) {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
-  let result = "";
-  for (let i = 0; i < length; i++) {
-    const randomIndex = Math.floor(Math.random() * chars.length);
-    result += chars[randomIndex];
-  }
-  return result;
-}
-
-async function getFields({ request, hostname, oas_id }) {
-  try {
-
-    const path = request.body.path == "" ? "/" : request.body.path
-    const method = request.body.method
-
-    const oas = await OAS.findById(oas_id);
-
-    const oasPathways = [path, method.toLowerCase()];
-
-    const pathwayData = getDataFromPath(oasPathways, oas.paths);
-
-    if (pathwayData) {
-      const api = await SwaggerParser.parse(oas);
-
-      let endpoint = api.paths[path][method.toLocaleLowerCase()];
-      const response = getResponseParameters(endpoint, oas);
-      const parameters = getRequestParameters(endpoint, oas);
-      return [parameters, method, response];
-    } else {
-      return [null, method];
-    }
-  } catch (e) {
-    console.log(e);
-  }
-}
-
-const getColor = (type) => {
-  switch (type) {
-    case "integer":
-      return "#a456e5";
-    case "number":
-      return "#a456e5";
-    case "string":
-      return "#2bb74a";
-    case "array":
-      return "#f1ee07";
-    case "boolean":
-      return "#FF4747";
-  }
-};
-
-function stringToSlug(str) {
-  return str
-    .toLowerCase() // Convert to lowercase
-    .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
-    .replace(/\s+/g, '-') // Replace spaces with hyphens
-    .replace(/-+/g, '-') // Replace multiple hyphens with a single hyphen
-    .trim(); // Trim leading/trailing spaces and hyphens
-}
