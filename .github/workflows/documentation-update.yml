@@ -23,25 +23,32 @@ jobs:
       - name: Install JSDoc and JSDoc-to-Markdown
         run: npm install jsdoc jsdoc-to-markdown --save-dev
 
-      # Create the docs directory and generate the markdown file name
+      # Create the docs directory and markdown file
       - name: Create docs directory and markdown file
         run: |
           mkdir -p docs
           REPO_NAME=$(basename "$GITHUB_REPOSITORY" | awk '{print tolower($0)}' | sed 's/[ _]/-/g')
           touch docs/${REPO_NAME}.md
-          echo "$REPO_NAME"
 
-      # Run JSDoc to Markdown
+      # Generate JSDoc Markdown
       - name: Generate JSDoc Markdown
         run: |
           REPO_NAME=$(basename "$GITHUB_REPOSITORY" | awk '{print tolower($0)}' | sed 's/[ _]/-/g')
           npx jsdoc2md src/**/*.js > docs/${REPO_NAME}.md
 
-      # Push the generated docs to the target repository
+      # Add the private SSH key from secrets
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+      # Clone the documentation repository using SSH and push the updates
       - name: Upload generated markdown to documentation repository
         run: |
           REPO_NAME=$(basename "$GITHUB_REPOSITORY" | awk '{print tolower($0)}' | sed 's/[ _]/-/g')
-          git clone https://github.com/Sera-ai/sera_documentation.git
+          git clone git@github.com:Sera-ai/sera_documentation.git
           cp docs/*.md sera_documentation/beta/development/
           cd sera_documentation
           git config --global user.email "brandonmassie32@gmail.com"
