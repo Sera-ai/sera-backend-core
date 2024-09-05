@@ -1,0 +1,49 @@
+name: Generate and Upload JSDoc Markdown
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  generate_jsdoc:
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout the repository
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Set up Node.js
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      # Install jsdoc and jsdoc-to-markdown as dev dependencies
+      - name: Install JSDoc and JSDoc-to-Markdown
+        run: npm install jsdoc jsdoc-to-markdown --save-dev
+
+      # Create the docs directory and generate the markdown file name
+      - name: Create docs directory and markdown file
+        run: |
+          mkdir -p docs
+          REPO_NAME=$(basename $GITHUB_REPOSITORY | tr '[:upper:]' '[:lower:]' | sed 's/ /-/g')
+          touch docs/${REPO_NAME}.md
+
+      # Run JSDoc to Markdown
+      - name: Generate JSDoc Markdown
+        run: |
+          REPO_NAME=$(basename $GITHUB_REPOSITORY | tr '[:upper:]' '[:lower:]' | sed 's/ /-/g')
+          npx jsdoc2md src/**/*.js > docs/${REPO_NAME}.md
+
+      # Push the generated docs to the target repository
+      - name: Upload generated markdown to documentation repository
+        run: |
+          git clone https://github.com/Sera-ai/sera_documentation.git
+          cp docs/*.md sera_documentation/beta/development/
+          cd sera_documentation
+          git config --global user.email "brandonmassie32@gmail.com"
+          git config --global user.name "Brandon"
+          git add -f beta/development/${REPO_NAME}.md
+          git commit -m "Update documentation for ${REPO_NAME}" || echo "No changes to commit"
+          git push origin main --force
