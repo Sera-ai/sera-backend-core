@@ -23,7 +23,7 @@ const { generateRandomString } = require("../helpers/helpers.general")
  * - GET `/manage/host/dns`: Retrieves the DNS configuration for a given host.
  *
  * @async
- * @function HostRoutes
+ * @function HostRoutes1
  * @param {FastifyInstance} fastify - The Fastify instance to register the routes on.
  * @param {Object} options - The options object for route configuration.
  *
