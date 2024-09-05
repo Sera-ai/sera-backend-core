@@ -17,7 +17,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: '20'
 
       # Install jsdoc and jsdoc-to-markdown as dev dependencies
       - name: Install JSDoc and JSDoc-to-Markdown
@@ -27,13 +27,13 @@ jobs:
       - name: Create docs directory and markdown file
         run: |
           mkdir -p docs
-          REPO_NAME=$(basename $GITHUB_REPOSITORY | tr '[:upper:]' '[:lower:]' | sed 's/ /-/g')
+          REPO_NAME=$(basename "$GITHUB_REPOSITORY" | awk '{print tolower($0)}' | sed 's/[ _]/-/g')
           touch docs/${REPO_NAME}.md
 
       # Run JSDoc to Markdown
       - name: Generate JSDoc Markdown
         run: |
-          REPO_NAME=$(basename $GITHUB_REPOSITORY | tr '[:upper:]' '[:lower:]' | sed 's/ /-/g')
+          REPO_NAME=$(basename "$GITHUB_REPOSITORY" | awk '{print tolower($0)}' | sed 's/[ _]/-/g')
           npx jsdoc2md src/**/*.js > docs/${REPO_NAME}.md
 
       # Push the generated docs to the target repository
