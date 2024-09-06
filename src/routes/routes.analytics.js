@@ -25,53 +25,26 @@ const {
  * - **GET** `/manage/logs`: Retrieves system and Sera logs, filtering and extracting log data based on time periods and log types.
  * - **GET** `/manage/usage`: Retrieves usage statistics based on hosts, paths, methods, and specified time periods.
  * - **GET** `/manage/hostdata`: Retrieves host-related data, filtered by hosts, paths, and methods.
- *
- * @async
- * @function AnalyticRoutes
- * @param {FastifyInstance} fastify - The Fastify instance to register the routes on.
- * @param {Object} options - The options object for route configuration.
- *
- * @route {GET} /manage/analytics
- * @summary Retrieves endpoint analytics including charts for specific periods and hosts.
- * @param {Object} request.query - The query parameters for retrieving analytics.
- * @param {string} request.query.period - The time period for the analytics (e.g., hourly, daily, weekly, monthly, custom).
- * @param {string} [request.query.host] - The hostname to filter analytics.
- * @param {string} [request.query.startDate] - The start date for custom period analytics (required for custom period).
- * @param {string} [request.query.endDate] - The end date for custom period analytics (required for custom period).
- * @returns {Object} The charts data for the specified period, including endpoint area, sankey, and radar charts.
- * @throws {Error} If an error occurs while retrieving the analytics data.
- *
- * @route {GET} /manage/logs
- * @summary Retrieves system and Sera logs, filtering by type and time period.
- * @param {Object} request.query - The query parameters for retrieving logs.
- * @param {string} request.query.period - The time period for retrieving logs.
- * @param {string} request.query.type - The type of logs to retrieve (e.g., seraLogs, systemLogs).
- * @returns {Array<Object>} A list of log entries, each with a timestamp, type, and message.
- * @throws {Error} If an error occurs while retrieving the log data.
- *
- * @route {GET} /manage/usage
- * @summary Retrieves usage statistics filtered by hosts, paths, methods, and time periods.
- * @param {Object} request.query - The query parameters for retrieving usage data.
- * @param {string} request.query.period - The time period for usage statistics (e.g., hourly, daily, weekly, monthly, custom).
- * @param {string} [request.query.host] - The hostname to filter usage data.
- * @param {string} [request.query.path] - The path to filter usage data.
- * @param {string} [request.query.method] - The HTTP method to filter usage data.
- * @returns {Object} The usage graph data for the specified period.
- * @throws {Error} If an error occurs while retrieving the usage data.
- *
- * @route {GET} /manage/hostdata
- * @summary Retrieves detailed host data filtered by hosts, paths, methods, and time periods.
- * @param {Object} request.query - The query parameters for retrieving host data.
- * @param {string} request.query.period - The time period for the host data (e.g., hourly, daily, weekly, monthly, custom).
- * @param {string} [request.query.host] - The hostname to filter host data.
- * @param {string} [request.query.path] - The path to filter host data.
- * @param {string} [request.query.method] - The HTTP method to filter host data.
- * @returns {Object} The filtered host data for the specified period.
- * @throws {Error} If an error occurs while retrieving the host data.
  */
 
 // Example usage in your route
 async function routes(fastify, options) {
+
+  /**
+   * @async
+   * @function getManageAnalytics
+   * @param {object} request - The Fastify request object.
+   * @param {Object} reply - The Fastify reply object.
+   *
+   * @summary Retrieves endpoint analytics, including charts for specific periods and hosts.
+   * @param {Object} request.query - The query parameters for retrieving analytics.
+   * @param {string} request.query.period - The time period for the analytics (e.g., hourly, daily, weekly, monthly, custom).
+   * @param {string} [request.query.host] - The hostname to filter analytics.
+   * @param {string} [request.query.startDate] - The start date for custom period analytics (required for custom period).
+   * @param {string} [request.query.endDate] - The end date for custom period analytics (required for custom period).
+   * @returns {Object} The charts data for the specified period, including endpoint area, sankey, and radar charts.
+   * @throws {Error} If an error occurs while retrieving the analytics data.
+   */
   fastify.get("/manage/analytics", async (request, reply) => {
     try {
       const { period, host } = request.query;
@@ -131,6 +104,20 @@ async function routes(fastify, options) {
     }
   });
 
+
+  /**
+   * @async
+   * @function getManageLogs
+   * @param {object} request - The Fastify request object.
+   * @param {Object} reply - The Fastify reply object.
+   *
+   * @summary Retrieves system and Sera logs, filtering by log type and extracting timestamped log data from the last 100 lines.
+   * @param {Object} request.query - The query parameters for retrieving logs.
+   * @param {string} request.query.period - The time period for retrieving logs.
+   * @param {string} request.query.type - The type of logs to retrieve (e.g., seraLogs, systemLogs).
+   * @returns {Array<Object>} A list of log entries, each with a timestamp, type, and message.
+   * @throws {Error} If an error occurs while retrieving the log data.
+   */
   fastify.get("/manage/logs", async (request, reply) => {
     try {
       const { period, type } = request.query;
@@ -221,6 +208,21 @@ async function routes(fastify, options) {
     }
   });
 
+  /**
+   * @async
+   * @function getManageUsage
+   * @param {object} request - The Fastify request object.
+   * @param {Object} reply - The Fastify reply object.
+   *
+   * @summary Retrieves usage statistics filtered by hosts, paths, methods, and time periods.
+   * @param {Object} request.query - The query parameters for retrieving usage data.
+   * @param {string} request.query.period - The time period for usage statistics (e.g., hourly, daily, weekly, monthly, custom).
+   * @param {string} [request.query.host] - The hostname to filter usage data.
+   * @param {string} [request.query.path] - The path to filter usage data.
+   * @param {string} [request.query.method] - The HTTP method to filter usage data.
+   * @returns {Object} The usage graph data for the specified period.
+   * @throws {Error} If an error occurs while retrieving the usage data.
+   */
   fastify.get("/manage/usage", async (request, reply) => {
     try {
       const { period, host, path, method } = request.query;
@@ -283,6 +285,22 @@ async function routes(fastify, options) {
     }
   });
 
+
+  /**
+   * @async
+   * @function getManageHostData
+   * @param {object} request - The Fastify request object.
+   * @param {Object} reply - The Fastify reply object.
+   *
+   * @summary Retrieves detailed host data, filtering by hosts, paths, methods, and time periods.
+   * @param {Object} request.query - The query parameters for retrieving host data.
+   * @param {string} request.query.period - The time period for the host data (e.g., hourly, daily, weekly, monthly, custom).
+   * @param {string} [request.query.host] - The hostname to filter host data.
+   * @param {string} [request.query.path] - The path to filter host data.
+   * @param {string} [request.query.method] - The HTTP method to filter host data.
+   * @returns {Object} The filtered host data for the specified period.
+   * @throws {Error} If an error occurs while retrieving the host data.
+   */
   fastify.get("/manage/hostdata", async (request, reply) => {
     try {
       const { period, host, path, method } = request.query;
