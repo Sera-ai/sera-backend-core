@@ -33,7 +33,7 @@ async function routes(fastify, options) {
 
   /**
    * @async
-   * @function /manage/analytics
+   * @method /manage/analytics
    * @group Analytics Endpoints
    * @param {object} request - The Fastify request object.
    * @param {Object} reply - The Fastify reply object.
