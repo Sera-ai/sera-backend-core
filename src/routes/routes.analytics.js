@@ -30,7 +30,7 @@ const {
  * @param {FastifyInstance} fastify - The Fastify instance to register the routes on.
  * @param {Object} options - The options object for route configuration.
  *
- * @route {GET} /manage/analytics
+ * @function GET /manage/analytics
  * @description Retrieves endpoint analytics, including area, sankey, and radar charts, based on the specified time period and host.
  * @param {Object} request.query - The query parameters for retrieving analytics.
  * @param {string} request.query.period - The time period for the analytics (e.g., hourly, daily, weekly, monthly, custom).
