@@ -16,6 +16,7 @@ const {
 } = require("../helpers/helpers.analytics")
 
 /**
+ * @group Analytics Endpoints
  * Registers routes for managing analytics, logs, usage, and host data with the Fastify server.
  *
  * This function sets up several endpoints to retrieve analytics, logs, usage statistics, and host data, with options to filter based on time periods, hosts, paths, and methods.
@@ -33,6 +34,7 @@ async function routes(fastify, options) {
   /**
    * @async
    * @function getManageAnalytics
+   * @group Analytics Endpoints
    * @param {object} request - The Fastify request object.
    * @param {Object} reply - The Fastify reply object.
    *
@@ -108,6 +110,7 @@ async function routes(fastify, options) {
   /**
    * @async
    * @function getManageLogs
+   * @group Analytics Endpoints
    * @param {object} request - The Fastify request object.
    * @param {Object} reply - The Fastify reply object.
    *
@@ -211,6 +214,7 @@ async function routes(fastify, options) {
   /**
    * @async
    * @function getManageUsage
+   * @group Analytics Endpoints
    * @param {object} request - The Fastify request object.
    * @param {Object} reply - The Fastify reply object.
    *
@@ -289,6 +293,7 @@ async function routes(fastify, options) {
   /**
    * @async
    * @function getManageHostData
+   * @group Analytics Endpoints
    * @param {object} request - The Fastify request object.
    * @param {Object} reply - The Fastify reply object.
    *
