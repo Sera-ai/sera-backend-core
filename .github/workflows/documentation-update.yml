@@ -50,7 +50,6 @@ jobs:
       - name: Upload generated markdown to documentation repository
         run: |
           REPO_NAME=$(basename "$GITHUB_REPOSITORY" | awk '{print tolower($0)}' | sed 's/[ _]/-/g')
-          git clone git@github.com:Sera-ai/sera_documentation.git
           cp docs/*.md sera_documentation/beta/development/
           cd sera_documentation
           git config --global user.email "brandonmassie32@gmail.com"
