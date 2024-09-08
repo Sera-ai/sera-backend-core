@@ -1,3 +1,8 @@
+/**
+ * @module ManageHosts
+ * @description API endpoints for managing hosts, OpenAPI Specifications (OAS), and DNS configurations.
+ */
+
 const fastifyPlugin = require('fastify-plugin');
 
 const Hosts = require("../models/models.hosts");
@@ -7,70 +12,20 @@ const DNS = require("../models/models.dns");
 const Converter = require("api-spec-converter");
 const yaml = require("js-yaml");
 
-const { generateRandomString } = require("../helpers/helpers.general")
-
-
-
-/**
- * Registers routes for managing hosts with the Fastify server.
- *
- * This function sets up several endpoints to create, retrieve, update, and delete hosts, along with their corresponding OpenAPI Specification (OAS) and DNS configurations.
- * The available routes are:
- * - POST `/manage/host`: Creates a new host with OAS and DNS configuration.
- * - GET `/manage/host`: Retrieves host information (either a specific host or a list of hosts).
- * - PATCH `/manage/host`: Updates specific fields in an existing host.
- * - GET `/manage/host/oas`: Retrieves the OAS specification for a given host.
- * - GET `/manage/host/dns`: Retrieves the DNS configuration for a given host.
- *
- * @async
- * @function HostRoutes
- * @param {FastifyInstance} fastify - The Fastify instance to register the routes on.
- * @param {Object} options - The options object for route configuration.
- *
- * @route POST /manage/host
- * @description Creates a new host with OAS and DNS configuration.
- * @param {Object} request.body - The request body containing host information.
- * @param {string} [request.body.hostname] - The hostname for the new host.
- * @param {string} [request.body.oas] - The OpenAPI specification in JSON or YAML format.
- * @param {number} [request.body.port=80] - The port for the new host.
- * @returns {Object} The saved host information, including OAS and DNS configuration.
- * @throws {Error} If the OAS is invalid or an error occurs while saving data.
- *
- * @route GET /manage/host
- * @description Retrieves host information. Can retrieve a specific host by `id` or return a list of up to 100 hosts.
- * @param {Object} request.query - The query parameters for retrieving hosts.
- * @param {string} [request.query.id] - The ID of the host to retrieve.
- * @returns {Array<Object>} The list of hosts or the specific host details.
- * @throws {Error} If an error occurs while retrieving the host data.
- *
- * @route PATCH /manage/host
- * @description Updates the specified field in a host's configuration.
- * @param {Object} request.body - The request body containing update data.
- * @param {string} request.body.host_id - The ID of the host to update.
- * @param {string} request.body.field - The specific field in `sera_config` to update.
- * @param {any} request.body.key - The new value to set for the field.
- * @returns {Object} The updated host information.
- * @throws {Error} If the host is not found or an error occurs during the update.
- *
- * @route GET /manage/host/oas
- * @description Retrieves the OpenAPI specification (OAS) for a given host.
- * @param {Object} request.query - The query parameters for retrieving OAS data.
- * @param {string} [request.query.host] - The hostname of the host to retrieve the OAS for.
- * @returns {Object} The OAS specification for the given host or all OAS data if no host is specified.
- * @throws {Error} If an error occurs while retrieving the OAS data.
- *
- * @route GET /manage/host/dns
- * @description Retrieves the DNS configuration for a given host.
- * @param {Object} request.query - The query parameters for retrieving DNS data.
- * @param {string} request.query.host - The hostname of the host to retrieve the DNS configuration for.
- * @returns {Object} The DNS configuration for the given host.
- * @throws {Error} If the host is not found or an error occurs while retrieving the DNS data.
- */
-
-
+const { generateRandomString } = require("../helpers/helpers.general");
 
 async function routes(fastify, options) {
 
+  /**
+   * @name POST /manage/host
+   * @description Create a new host entry, including OAS and DNS configurations.
+   * @param {string} [hostname=body] - Hostname for the new host.
+   * @param {number} [port=body] - Optional port for the new host (default is 80).
+   * @param {object} [oas=body] - Optional OAS (OpenAPI Specification) data for the host.
+   * @return {dataToSave} **object** - Saved host data with OAS and DNS configurations.
+   * @example
+   * POST /manage/host
+   */
   fastify.post("/manage/host", async (request, reply) => {
     let oas;
     let oasJsonFinal = {};
@@ -203,6 +158,14 @@ async function routes(fastify, options) {
     }
   });
 
+  /**
+   * @name GET /manage/host
+   * @description Fetch host data with optional filtering by host ID.
+   * @param {string} [id=query] - Optional host ID to fetch specific host data.
+   * @return {node_data} **object** - Host data with OAS specification.
+   * @example
+   * GET /manage/host?id=12345
+   */
   fastify.get("/manage/host", async (request, reply) => {
     try {
       let node_data;
@@ -219,6 +182,16 @@ async function routes(fastify, options) {
     }
   });
 
+  /**
+   * @name PATCH /manage/host
+   * @description Update the configuration of a host by host ID.
+   * @param {string} [host_id=body] - Host ID to update.
+   * @param {string} [field=body] - Field to update within `sera_config`.
+   * @param {string} [key=body] - New value for the specified field.
+   * @return {updatedHost} **object** - Updated host data.
+   * @example
+   * PATCH /manage/host
+   */
   fastify.patch("/manage/host", async (request, reply) => {
     try {
       if (!request.body.host_id) {
@@ -247,6 +220,14 @@ async function routes(fastify, options) {
     }
   });
 
+  /**
+   * @name GET /manage/host/oas
+   * @description Fetch OAS data for a specific host or all hosts.
+   * @param {string} [host=query] - Optional hostname to fetch specific OAS data.
+   * @return {oas_data} **object** - OAS specification data.
+   * @example
+   * GET /manage/host/oas?host=myhost.com
+   */
   fastify.get("/manage/host/oas", async (request, reply) => {
     try {
       let node_data;
@@ -263,6 +244,14 @@ async function routes(fastify, options) {
     }
   });
 
+  /**
+   * @name GET /manage/host/dns
+   * @description Fetch DNS configuration data for a specific host.
+   * @param {string} [host=query] - Hostname to fetch DNS configuration.
+   * @return {dns_data} **object** - DNS configuration data.
+   * @example
+   * GET /manage/host/dns?host=myhost.com
+   */
   fastify.get("/manage/host/dns", async (request, reply) => {
     try {
       if (request.query.host) {
@@ -279,4 +268,3 @@ async function routes(fastify, options) {
 }
 
 module.exports = fastifyPlugin(routes);
-

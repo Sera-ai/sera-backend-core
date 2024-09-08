@@ -1,9 +1,25 @@
+/**
+ * @module ManageSearch
+ * @description API endpoint for searching through hosts and endpoints.
+ */
+
 const fastifyPlugin = require('fastify-plugin');
 
 const Hosts = require("../models/models.hosts");
 const Endpoints = require("../models/models.endpoints");
 
 async function routes(fastify, options) {
+  /**
+   * @name POST /manage/search
+   * @description Search through hosts and endpoints based on a search term.
+   * @param {string} searchTerm - The search term to query hosts and endpoints.
+   * @return {results} **array** - List of matching hosts and endpoints.
+   * @example
+   * POST /manage/search
+   * {
+   *   "searchTerm": "example"
+   * }
+   */
   fastify.post("/manage/search", async (request, reply) => {
 
     if (request.body.searchTerm) {

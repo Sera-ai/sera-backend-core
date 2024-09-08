@@ -1,3 +1,8 @@
+/**
+ * @module ManageIntegrations
+ * @description API endpoints for managing integration builders and plugins.
+ */
+
 const fastifyPlugin = require('fastify-plugin');
 const IntegrationBuilder = require("../models/models.integrations");
 const Nodes = require("../models/models.nodes");
@@ -6,50 +11,16 @@ const OAS = require("../models/models.oas");
 const { stringToSlug, getBuilder } = require("../helpers/helpers.general")
 
 
-/**
- * Registers routes for managing builder integrations with the Fastify server.
- *
- * This function sets up several endpoints to create, retrieve, and list builder integrations, along with their corresponding nodes and edges.
- * The available routes are:
- * - POST `/manage/builder/integration`: Creates a new builder integration.
- * - GET `/manage/builder/integration`: Retrieves the details of a specific builder integration by slug.
- * - GET `/manage/builder/integrations`: Lists all available builder integrations.
- * - GET `/manage/builder/integration/plugins`: Lists all plugins (nodes) associated with integrations.
- *
- * @async
- * @function IntegrationRoutes
- * @param {FastifyInstance} fastify - The Fastify instance to register the routes on.
- * @param {Object} options - The options object for route configuration.
- *
- * @route POST /manage/builder/integration
- * @description Creates a new builder integration based on the provided name and hostname.
- * @param {Object} request.body - The request body containing the builder integration details.
- * @param {string} request.body.name - The name of the integration (required).
- * @param {string} [request.body.hostname] - The hostname of the integration (optional).
- * @returns {Object} The slug of the newly created integration.
- * @throws {Error} If the required parameters are missing or the name is duplicated.
- *
- * @route GET /manage/builder/integration
- * @description Retrieves the nodes and edges of a specific builder integration by its slug.
- * @param {Object} request.query - The query parameters for retrieving the integration.
- * @param {string} request.query.slug - The slug of the integration to retrieve.
- * @returns {Object} The nodes and edges associated with the specified integration.
- * @throws {Error} If the integration is not found or an error occurs while retrieving the data.
- *
- * @route GET /manage/builder/integrations
- * @description Retrieves a list of all builder integrations.
- * @returns {Array<Object>} An array of integrations, each containing the name, type, slug, and enabled status.
- * @throws {Error} If an error occurs while retrieving the integrations.
- *
- * @route GET /manage/builder/integration/plugins
- * @description Retrieves all the nodes (plugins) associated with builder integrations.
- * @returns {Array<Object>} An array of plugins (nodes), each containing the name, type, and ID.
- * @throws {Error} If an error occurs while retrieving the plugins.
- */
-
-
 
 async function routes(fastify, options) {
+  /**
+   * @name POST /manage/builder/integration
+   * @description Create a new integration builder.
+   * @param {object} body - Contains the name, hostname, and other optional fields for the integration.
+   * @return {slug} **string** - The slug of the created integration.
+   * @example
+   * POST /manage/builder/integration
+   */
   fastify.post("/manage/builder/integration", async (request, reply) => {
     try {
       if (!request.body.name) throw new Error("required parameters missing");
@@ -78,6 +49,14 @@ async function routes(fastify, options) {
     }
   });
 
+  /**
+   * @name GET /manage/builder/integration
+   * @description Fetch details of a specific integration builder by slug.
+   * @param {string} [slug] - Slug of the integration to fetch.
+   * @return {builder} **object** - Builder details including nodes and edges.
+   * @example
+   * GET /manage/builder/integration?slug=integration-slug
+   */
   fastify.get("/manage/builder/integration", async (request, reply) => {
     let parameters = {};
     let response = {};
@@ -118,6 +97,13 @@ async function routes(fastify, options) {
     }
   });
 
+  /**
+   * @name GET /manage/builder/integrations
+   * @description Fetch a list of all integration builders.
+   * @return {transformedData} **array** - A list of integration builders with names, types, and slugs.
+   * @example
+   * GET /manage/builder/integrations
+   */
   fastify.get("/manage/builder/integrations", async (request, reply) => {
     try {
       const node_data = await IntegrationBuilder.find();
@@ -137,6 +123,13 @@ async function routes(fastify, options) {
     }
   });
 
+  /**
+   * @name GET /manage/builder/integration/plugins
+   * @description Fetch plugins associated with all integration builders.
+   * @return {transformedData} **array** - A list of plugins associated with integration builders.
+   * @example
+   * GET /manage/builder/integration/plugins
+   */
   fastify.get("/manage/builder/integration/plugins", async (request, reply) => {
     try {
       const node_data = await IntegrationBuilder.find().populate(["nodes"]);

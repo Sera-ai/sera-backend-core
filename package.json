@@ -7,7 +7,7 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "generate-docs": "jsdoc2md src/**/*.js > docs/api.md"
+    "generate-docs": "npx jsdoc2md --template template.hbs src/**/*.js > docs/beta/development/sera-backend-core.md"
   },
   "author": "",
   "license": "ISC",
