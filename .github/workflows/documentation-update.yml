@@ -34,7 +34,7 @@ jobs:
       - name: Generate JSDoc Markdown
         run: |
           REPO_NAME=$(basename "$GITHUB_REPOSITORY" | awk '{print tolower($0)}' | sed 's/[ _]/-/g')
-          git clone github.com/Sera-ai/sera_documentation.git
+          git clone https://github.com/Sera-ai/sera_documentation.git
           cp sera_documentation/api-template.hbs api-template.hbs
           npx jsdoc2md --template api-template.hbs src/**/*.js > docs/${REPO_NAME}.md
 
