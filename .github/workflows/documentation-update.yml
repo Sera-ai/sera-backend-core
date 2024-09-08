@@ -30,14 +30,6 @@ jobs:
           REPO_NAME=$(basename "$GITHUB_REPOSITORY" | awk '{print tolower($0)}' | sed 's/[ _]/-/g')
           touch docs/${REPO_NAME}.md
 
-      # Generate JSDoc Markdown
-      - name: Generate JSDoc Markdown
-        run: |
-          REPO_NAME=$(basename "$GITHUB_REPOSITORY" | awk '{print tolower($0)}' | sed 's/[ _]/-/g')
-          git clone https://github.com/Sera-ai/sera_documentation.git
-          cp sera_documentation/api-template.hbs api-template.hbs
-          npx jsdoc2md --template api-template.hbs src/**/*.js > docs/${REPO_NAME}.md
-
       # Add the private SSH key from secrets
       - name: Setup SSH key
         run: |
@@ -45,6 +37,14 @@ jobs:
           echo "${{ secrets.SSH_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+      # Generate JSDoc Markdown
+      - name: Generate JSDoc Markdown
+        run: |
+          REPO_NAME=$(basename "$GITHUB_REPOSITORY" | awk '{print tolower($0)}' | sed 's/[ _]/-/g')
+          git clone git@github.com:Sera-ai/sera_documentation.git
+          cp sera_documentation/api-template.hbs api-template.hbs
+          npx jsdoc2md --template api-template.hbs src/**/*.js > docs/${REPO_NAME}.md
 
       # Clone the documentation repository using SSH and push the updates
       - name: Upload generated markdown to documentation repository
