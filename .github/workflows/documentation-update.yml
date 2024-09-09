@@ -42,16 +42,16 @@ jobs:
       - name: Generate JSDoc Markdown
         run: |
           REPO_NAME=$(basename "$GITHUB_REPOSITORY" | awk '{print tolower($0)}' | sed 's/[ _]/-/g')
-          git clone git@github.com:Sera-ai/sera_documentation.git
-          cp sera_documentation/api-template.hbs api-template.hbs
+          git clone git@github.com:Sera-ai/docs.sera.network.git
+          cp docs.sera.network/api-template.hbs api-template.hbs
           npx jsdoc2md --template api-template.hbs src/**/*.js > docs/${REPO_NAME}.md
 
       # Clone the documentation repository using SSH and push the updates
       - name: Upload generated markdown to documentation repository
         run: |
           REPO_NAME=$(basename "$GITHUB_REPOSITORY" | awk '{print tolower($0)}' | sed 's/[ _]/-/g')
-          cp docs/*.md sera_documentation/beta/development/
-          cd sera_documentation
+          cp docs/*.md docs.sera.network/beta/development/
+          cd docs.sera.network
           git config --global user.email "brandonmassie32@gmail.com"
           git config --global user.name "Brandon"
           git add -f beta/development/${REPO_NAME}.md
