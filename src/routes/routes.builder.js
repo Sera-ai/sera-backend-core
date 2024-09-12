@@ -235,7 +235,17 @@ async function routes(fastify, options) {
     }
   });
 
-  
+  /**
+   * @name POST /manage/builder/create
+   * @description Create a new builder event with nodes and edges based on the provided template and fields.
+   * @param {string} [host_id=body] - ID of the host for which the builder is being created.
+   * @param {string} [hostname=body] - Hostname of the builder.
+   * @param {string} [path=body] - Path for the builder.
+   * @param {string} [method=body] - HTTP method for the builder.
+   * @return {dataToSave} **object** - The newly created builder event with nodes and edges.
+   * @example
+   * POST /manage/builder/create
+   */
   fastify.post("/manage/builder/create", async (request, reply) => {
     try {
       const host = await Hosts.findById(request.body.host_id);
