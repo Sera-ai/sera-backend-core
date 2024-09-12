@@ -1,14 +1,17 @@
 const SwaggerParser = require("@apidevtools/swagger-parser");
 const mongoose = require("mongoose");
+const Builder = require("../models/models.builder");
+const EventBuilder = require("../models/models.eventBuilder");
+const OAS = require("../models/models.oas");
+const Nodes = require("../models/models.nodes");
+const Edges = require("../models/models.edges");
 
 const {
     getRequestParameters,
     getResponseParameters,
 } = require("./helpers.oas");
 
-const OAS = require("../models/models.oas");
-const Nodes = require("../models/models.nodes");
-const Edges = require("../models/models.edges");
+
 
 function getDataFromPath(arr, obj) {
     let currentObj = obj;
