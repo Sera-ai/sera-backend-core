@@ -78,7 +78,7 @@ const app = Fastify();
   });
     // Register routes with unique prefixes
     app.register(searchRoutes);
-    app.register(hostRoutes);
+    app.register(hostRoutes.routes);
     app.register(builderRoutes);
     app.register(eventRoutes);
     app.register(analyticsRoutes);

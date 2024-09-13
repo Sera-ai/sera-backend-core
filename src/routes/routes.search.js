@@ -7,6 +7,124 @@ const fastifyPlugin = require('fastify-plugin');
 
 const Hosts = require("../models/models.hosts");
 const Endpoints = require("../models/models.endpoints");
+const Oas = require("../models/models.oas")
+const { createHostHandler } = require('./routes.host');
+const { createCustomReply } = require('../helpers/helpers.general');
+
+
+
+
+async function aiSearchHandler(request, reply) {
+  const debugAi = request.body?.debug || false
+
+  if (request.body.searchTerm) {
+    try {
+      const response = await fetch(
+        process.env.SERA_AI_URL,
+        {
+          headers: {
+            "Accept": "application/json",
+            "Authorization": `Bearer ${process.env.SERA_AI_HF_API}`,
+            "Content-Type": "application/json"
+          },
+          method: "POST",
+          body: JSON.stringify({
+            model: "tgi",
+            messages: [{ role: "user", content: request.body.searchTerm }],
+            max_tokens: 64,
+            top_k: 1
+          }),
+        }
+      );
+      const result = await response.json();
+
+      if (debugAi) {
+        reply.send({ result: result?.choices?.[0]?.message?.content ? "success" : "failure", data: result?.choices?.[0]?.message?.content });
+        return
+      }
+      const aiSequence = result?.choices[0]?.message?.content
+
+      if (aiSequence) {
+        const aiSequenceArray = JSON.parse(aiSequence)
+        let oas_id
+        aiSequenceArray.forEach(async element => {
+          switch (element.name) {
+            case "add_host":
+              console.log(element?.parameters?.hostname)
+              if (element?.parameters?.hostname) {
+                const requestData = {
+                  hostname: element.parameters.hostname
+                };
+                const customReply = createCustomReply();
+                oas_id = await createHostHandler({ body: requestData }, customReply);
+              }
+              break
+            case "add_endpoint":
+
+              let oasDoc = await oas_id ? Oas.findById(oas_id) : Oas.findOne({
+                'servers.url': element?.parameters?.hostname
+              });
+
+              if (!oasDoc) {
+                console.error(`No OAS document found for hostname: ${element?.parameters?.hostname}`);
+                return null;
+              }
+
+              if (!oasDoc.paths?.[element?.parameters?.path]) {
+                if (!oasDoc.paths) {
+                  oasDoc.paths = {}
+                }
+                oasDoc.paths[element?.parameters?.path] = {};
+              }
+
+              if (!oasDoc.paths?.[element?.parameters?.path]?.[element?.parameters?.method]) {
+                // Method does not exist for this path, create it with default empty structure
+                oasDoc.paths[element?.parameters?.path][element?.parameters?.method || "get"] = {
+                  summary: `Auto-generated path for ${element?.parameters?.path}`,
+                  description: `Automatically generated operation for method ${element?.parameters?.method.toUpperCase()}`,
+                  parameters: [],
+                  responses: {
+                    "200": {
+                      description: `Example response for ${element?.parameters?.path}`,
+                      headers: {},
+                      content: {}
+                    }
+                  }
+                };
+              }
+              console.log(oasDoc)
+              console.log("THIS OASID: " + oas_id)
+              if (oas_id) {
+                await Oas.findByIdAndUpdate(
+                  oas_id,
+                  { $set: { paths: oasDoc.paths } }, // Use $set to update or add the path/method
+                  { new: true, upsert: true } // Return the updated document and create if not exists
+                );
+              } else {
+                await Oas.findOneAndUpdate(
+                  { 'servers.url': element?.parameters?.hostname },
+                  { $set: { paths: oasDoc.paths } },
+                  { new: false, upsert: true } // Return the updated document and create if not exists
+                );
+              }
+
+              console.log(`Path '${element?.parameters?.path}' with method '${element?.parameters?.method}' updated/created in OAS document for hostname '${element?.parameters?.hostname}'`);
+              break
+          }
+        });
+
+        reply.send({ result: "success", type: "host", data: { hostname: aiSequenceArray[0].parameters.hostname } });
+
+
+      } else {
+        reply.status(500).send("something went wrong");
+      }
+
+    } catch (error) {
+      console.error(error);
+    }
+  }
+};
 
 async function routes(fastify, options) {
   /**
@@ -21,7 +139,6 @@ async function routes(fastify, options) {
    * }
    */
   fastify.post("/manage/search", async (request, reply) => {
-
     if (request.body.searchTerm) {
       // Define the fields you want to search in each collection
       let hostFields = ['hostname'];
@@ -49,6 +166,8 @@ async function routes(fastify, options) {
       }
     }
   });
+
+  fastify.post("/manage/search/ai", aiSearchHandler)
 }
 
 module.exports = fastifyPlugin(routes);
