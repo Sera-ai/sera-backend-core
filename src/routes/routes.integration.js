@@ -171,19 +171,6 @@ async function routes(fastify, options) {
     }
   });
 
-  fastify.post("/manage/builder/integration/icon", async (request, reply) => {
-    const parts = req.parts();
-
-    for await (const part of parts) {
-      if (part.file) {
-        const uploadStream = bucket.openUploadStream(part.filename, {
-          contentType: part.mimetype,
-        });
-        await pump(part.file, uploadStream);
-        reply.send({ message: 'File uploaded successfully to MongoDB GridFS' });
-      }
-    }
-  });
 }
 
 module.exports = fastifyPlugin(routes);

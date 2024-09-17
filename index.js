@@ -2,6 +2,7 @@ require("dotenv").config();
 const Fastify = require("fastify");
 const mongoose = require("mongoose");
 const WebSocket = require("ws");
+const gridfsStream = require('gridfs-stream');
 
 const hostRoutes = require("./src/routes/routes.host");
 const builderRoutes = require("./src/routes/routes.builder");
@@ -57,6 +58,7 @@ function connectWebSocket() {
 connectWebSocket();
 
 const app = Fastify();
+let gfs;
 
 (async () => {
   try {
@@ -64,6 +66,12 @@ const app = Fastify();
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
+    
+    const db = mongoose.connection.db;
+    gfs = gridfsStream(db, mongoose.mongo); // Initialize GridFS stream with Mongoose
+    gfs.collection('uploads'); // Set the GridFS collection
+
+
     console.log("Database Connected");
 
     // Register Fastify plugins
@@ -72,7 +80,6 @@ const app = Fastify();
     await app.register(require('@fastify/multipart'));
 
     // Register the multipart plugin
-    fastify.register(multipart);
     app.setErrorHandler((error, request, reply) => {
       reply
         .header("Access-Control-Allow-Origin", "*")
