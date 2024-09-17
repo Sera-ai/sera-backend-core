@@ -141,5 +141,5 @@ module.exports = {
     getColor,
     getFields,
     generateRandomString,
-    getDataFromPath
+    getDataFromPath,
 }
