@@ -9,6 +9,9 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "generate-docs": "npx jsdoc2md --template template.hbs src/**/*.js > docs/beta/development/sera-backend-core.md"
   },
+  "workspaces": [
+    "/shared-node-modules"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
