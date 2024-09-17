@@ -23,31 +23,49 @@ async function routes(fastify, options) {
    */
   fastify.post("/manage/builder/integration", async (request, reply) => {
     try {
-      if (!request.body.name) throw new Error("required parameters missing");
-      
+      const data = await request.file();  // Parse the file from multipart form-data
+      const parts = request.parts();      // Parse form fields
+      let fields = {};
+
+      for await (const part of parts) {
+        if (!part.file) {
+          fields[part.fieldname] = part.value; // Collect form fields
+        }
+      }
+
+      if (!fields.name) throw new Error("Required parameters missing");
+
       let integration_data = {
-        name: request.body.name,
-        slug: stringToSlug(request.body.name),
+        name: fields.name,
+        slug: stringToSlug(fields.name),
         type: "API Endpoint",
-        hostname: request.body.hostname ?? "",
+        hostname: fields.hostname ?? "",
         nodes: [],
         edges: [],
-        enabled: true
+        enabled: true,
+        image: null
       };
 
-      const slugCheck = await IntegrationBuilder.find({ slug: integration_data.slug })
-      if(slugCheck.length > 0) throw new Error("Name duplicate")
+      const slugCheck = await IntegrationBuilder.find({ slug: integration_data.slug });
+      if (slugCheck.length > 0) throw new Error("Name duplicate");
+
+      // Process the uploaded file (if needed)
+      if (data && data.file) {
+        // Example: Save the file using GridFS or some other method
+        const fileId = await saveFileToGridFS(data.file, data.filename);
+        integration_data.image = fileId;  // Store the file reference in the integration_data
+      }
 
       const integrationData = new IntegrationBuilder(integration_data);
       const savedData = await integrationData.save();
       savedData.id = savedData._id;
 
-
-      reply.send({slug: savedData.slug});
+      reply.send({ slug: savedData.slug });
     } catch (error) {
       reply.status(500).send({ message: error.message });
     }
   });
+
 
   /**
    * @name GET /manage/builder/integration
@@ -69,6 +87,7 @@ async function routes(fastify, options) {
         builderId,
         parameters,
         response,
+        2
       );
       if (!builderData) throw { error: "NoBuilder", host: host._id };
       const { nodes, edges } = builderData;
@@ -137,7 +156,7 @@ async function routes(fastify, options) {
       const transformedData = []
 
       node_data.map((item) => {
-        item.nodes.forEach((node)=>{
+        item.nodes.forEach((node) => {
           transformedData.push({
             name: node.data.inputData.name || (item.hostname + (node.data.inputData.endpoint || "/")),
             type: node.data.function,
@@ -149,6 +168,20 @@ async function routes(fastify, options) {
       reply.send(transformedData);
     } catch (error) {
       reply.status(500).send({ message: error.message });
+    }
+  });
+
+  fastify.post("/manage/builder/integration/icon", async (request, reply) => {
+    const parts = req.parts();
+
+    for await (const part of parts) {
+      if (part.file) {
+        const uploadStream = bucket.openUploadStream(part.filename, {
+          contentType: part.mimetype,
+        });
+        await pump(part.file, uploadStream);
+        reply.send({ message: 'File uploaded successfully to MongoDB GridFS' });
+      }
     }
   });
 }

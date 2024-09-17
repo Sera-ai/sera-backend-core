@@ -2,6 +2,7 @@ const SwaggerParser = require("@apidevtools/swagger-parser");
 const mongoose = require("mongoose");
 const Builder = require("../models/models.builder");
 const EventBuilder = require("../models/models.eventBuilder");
+const IntegrationBuilder = require("../models/models.integrations");
 const OAS = require("../models/models.oas");
 const Nodes = require("../models/models.nodes");
 const Edges = require("../models/models.edges");
@@ -32,17 +33,17 @@ function getDataFromPath(arr, obj) {
 // Custom reply object that captures the send result
 function createCustomReply() {
     return {
-      status: function (code) {
-        this.statusCode = code;
-        return this; // For chaining status and send
-      },
-      send: function (payload) {
-        // Return the payload that would have been sent
-        return payload;
-      }
+        status: function (code) {
+            this.statusCode = code;
+            return this; // For chaining status and send
+        },
+        send: function (payload) {
+            // Return the payload that would have been sent
+            return payload;
+        }
     };
-  }
-  
+}
+
 
 function generateRandomString(length = 12) {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
@@ -59,11 +60,8 @@ async function getFields({ request, hostname, oas_id }) {
 
         const path = request.body.path == "" ? "/" : request.body.path
         const method = request.body.method
-
         const oas = await OAS.findById(oas_id);
-
         const oasPathways = [path, method.toLowerCase()];
-
         const pathwayData = getDataFromPath(oasPathways, oas.paths);
 
         if (pathwayData) {
@@ -105,10 +103,14 @@ function stringToSlug(str) {
         .trim(); // Trim leading/trailing spaces and hyphens
 }
 
-async function getBuilder(builderId, parameters, response, event = false) {
-    const inventoryRes = event
-        ? await EventBuilder.findOne({ slug: builderId })
-        : await Builder.findById(builderId);
+async function getBuilder(builderId, parameters, response, builderType = 0) {
+    let inventoryRes
+
+    switch (builderType) {
+        case 0: inventoryRes = await Builder.findById(builderId); break;
+        case 1: inventoryRes = await EventBuilder.findOne({ slug: builderId }); break;
+        case 2: inventoryRes = await IntegrationBuilder.findOne({ slug: builderId }); break;
+    }
 
     if (!inventoryRes) {
         console.log("Builder inventory not found");

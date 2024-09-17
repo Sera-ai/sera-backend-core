@@ -69,13 +69,17 @@ const app = Fastify();
     // Register Fastify plugins
     // await app.register(require('@fastify/cors'), { origin: "*" });
     await app.register(require('@fastify/formbody'));
+    await app.register(require('@fastify/multipart'));
+
+    // Register the multipart plugin
+    fastify.register(multipart);
     app.setErrorHandler((error, request, reply) => {
       reply
-          .header("Access-Control-Allow-Origin", "*")
-          .header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Forwarded-For, X-Sera-Service, X-Sera-Builder")
-          .status(500)
-          .send({ error: 'Internal Server Error' });
-  });
+        .header("Access-Control-Allow-Origin", "*")
+        .header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Forwarded-For, X-Sera-Service, X-Sera-Builder")
+        .status(500)
+        .send({ error: 'Internal Server Error' });
+    });
     // Register routes with unique prefixes
     app.register(searchRoutes);
     app.register(hostRoutes.routes);
@@ -83,7 +87,7 @@ const app = Fastify();
     app.register(eventRoutes);
     app.register(analyticsRoutes);
     app.register(integrationRoutes);
-    
+
     // Start the server
     app.listen({ port, host: '0.0.0.0' }, (err) => {
       if (err) {
