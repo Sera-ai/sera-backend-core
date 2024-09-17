@@ -14,6 +14,138 @@ const yaml = require("js-yaml");
 
 const { generateRandomString } = require("../helpers/helpers.general");
 
+async function createHostHandler(request, reply) {
+  let oas;
+  let oasJsonFinal = {};
+  try {
+    function getSecondToLastElement(hostname) {
+      const parts = hostname.split(".");
+      return parts.length >= 2 ? parts[parts.length - 2] : null;
+    }
+
+    function cleanUrl(url) {
+      const pattern = /^(https?:\/\/)?(www\.)?/;
+      return url.replace(pattern, "");
+    }
+
+    function detectOASVersion(oas) {
+      if (oas.openapi) {
+        const majorVersion = parseInt(oas.openapi.charAt(0));
+        return majorVersion === 3 ? "openapi_3" : "unknown";
+      } else if (oas.swagger) {
+        const majorVersion = parseInt(oas.swagger.charAt(0));
+        return majorVersion === 2 ? "swagger_2" : "swagger_1";
+      }
+      return "unknown";
+    }
+
+    function isJsonString(str) {
+      try {
+        JSON.parse(str);
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    let hostdomain;
+    if (!request.body?.oas) {
+      oas = new OAS({
+        openapi: "3.0.1",
+        info: {
+          title: "Minimal API",
+          version: "1.0.0",
+        },
+        servers: [{ url: request.body.hostname }],
+        paths: {},
+      });
+
+      oasJsonFinal = {
+        openapi: "3.0.1",
+        info: {
+          title: "Minimal API",
+          version: "1.0.0",
+        },
+        servers: [{ url: request.body.hostname }],
+        paths: {},
+      };
+
+      hostdomain = getSecondToLastElement(request.body.hostname);
+    } else {
+      let oasData = request.body.oas;
+      if (typeof oasData === "string" && !isJsonString(oasData)) {
+        try {
+          oasData = yaml.load(oasData);
+        } catch (e) {
+          return reply
+            .status(400)
+            .send("Invalid OAS format: Please provide valid JSON or YAML.");
+        }
+      }
+
+      const oasJson = oasData;
+      const oasversion = detectOASVersion(oasJson);
+      if (oasversion == "unknown") throw { error: "unknown oas", oas: oasJson };
+      if (oasversion != "openapi_3") {
+        Converter.convert(
+          {
+            from: oasversion,
+            to: "openapi_3",
+            source: oasJson,
+          },
+          function (err, converted) {
+            oas = new OAS(converted);
+            hostdomain = getSecondToLastElement(converted.servers[0].url);
+            oasJsonFinal = converted;
+          }
+        );
+      } else {
+        oas = new OAS(oasJson);
+        oasJsonFinal = oasJson;
+        hostdomain = getSecondToLastElement(oasJson.servers[0].url);
+      }
+    }
+
+    const oasSave = await oas.save();
+    const subdo = `${hostdomain.substring(0, 40)}-${generateRandomString(6)}`;
+    const dns = new DNS({
+      sera_config: {
+        domain: cleanUrl(hostdomain),
+        expires: null,
+        sub_domain: cleanUrl(subdo),
+        obfuscated: null,
+      },
+    });
+
+    const dnsSave = await dns.save();
+
+    const data = new Hosts({
+      oas_spec: oasSave._id,
+      sera_dns: dnsSave._id,
+      frwd_config: {
+        host: cleanUrl(hostdomain),
+        port: request.body.port || 80,
+      },
+      sera_config: {
+        strict: false,
+        learn: true,
+        https: true,
+      },
+      hostname: cleanUrl(oasJsonFinal.servers[0].url),
+    });
+
+    try {
+      const dataToSave = await data.save();
+      reply.status(200).send(dataToSave);
+      return oasSave._id
+    } catch (error) {
+      reply.status(500).send({ message: error.message });
+    }
+  } catch (e) {
+    console.warn(e);
+  }
+}
+
 async function routes(fastify, options) {
 
   /**
@@ -26,137 +158,7 @@ async function routes(fastify, options) {
    * @example
    * POST /manage/host
    */
-  fastify.post("/manage/host", async (request, reply) => {
-    let oas;
-    let oasJsonFinal = {};
-    try {
-      function getSecondToLastElement(hostname) {
-        const parts = hostname.split(".");
-        return parts.length >= 2 ? parts[parts.length - 2] : null;
-      }
-
-      function cleanUrl(url) {
-        const pattern = /^(https?:\/\/)?(www\.)?/;
-        return url.replace(pattern, "");
-      }
-
-      function detectOASVersion(oas) {
-        if (oas.openapi) {
-          const majorVersion = parseInt(oas.openapi.charAt(0));
-          return majorVersion === 3 ? "openapi_3" : "unknown";
-        } else if (oas.swagger) {
-          const majorVersion = parseInt(oas.swagger.charAt(0));
-          return majorVersion === 2 ? "swagger_2" : "swagger_1";
-        }
-        return "unknown";
-      }
-
-      function isJsonString(str) {
-        try {
-          JSON.parse(str);
-          return true;
-        } catch (e) {
-          return false;
-        }
-      }
-
-      let hostdomain;
-
-      if (!request.body.oas) {
-        oas = new OAS({
-          openapi: "3.0.1",
-          info: {
-            title: "Minimal API",
-            version: "1.0.0",
-          },
-          servers: [{ url: request.body.hostname }],
-          paths: {},
-        });
-
-        oasJsonFinal = {
-          openapi: "3.0.1",
-          info: {
-            title: "Minimal API",
-            version: "1.0.0",
-          },
-          servers: [{ url: request.body.hostname }],
-          paths: {},
-        };
-
-        hostdomain = getSecondToLastElement(request.body.hostname);
-      } else {
-        let oasData = request.body.oas;
-        if (typeof oasData === "string" && !isJsonString(oasData)) {
-          try {
-            oasData = yaml.load(oasData);
-          } catch (e) {
-            return reply
-              .status(400)
-              .send("Invalid OAS format: Please provide valid JSON or YAML.");
-          }
-        }
-
-        const oasJson = oasData;
-        const oasversion = detectOASVersion(oasJson);
-        if (oasversion == "unknown") throw { error: "unknown oas", oas: oasJson };
-        if (oasversion != "openapi_3") {
-          Converter.convert(
-            {
-              from: oasversion,
-              to: "openapi_3",
-              source: oasJson,
-            },
-            function (err, converted) {
-              oas = new OAS(converted);
-              hostdomain = getSecondToLastElement(converted.servers[0].url);
-              oasJsonFinal = converted;
-            }
-          );
-        } else {
-          oas = new OAS(oasJson);
-          oasJsonFinal = oasJson;
-          hostdomain = getSecondToLastElement(oasJson.servers[0].url);
-        }
-      }
-
-      const oasSave = await oas.save();
-      const subdo = `${hostdomain.substring(0, 40)}-${generateRandomString(6)}`;
-      const dns = new DNS({
-        sera_config: {
-          domain: cleanUrl(hostdomain),
-          expires: null,
-          sub_domain: cleanUrl(subdo),
-          obfuscated: null,
-        },
-      });
-
-      const dnsSave = await dns.save();
-
-      const data = new Hosts({
-        oas_spec: oasSave._id,
-        sera_dns: dnsSave._id,
-        frwd_config: {
-          host: cleanUrl(hostdomain),
-          port: request.body.port || 80,
-        },
-        sera_config: {
-          strict: false,
-          learn: true,
-          https: true,
-        },
-        hostname: cleanUrl(oasJsonFinal.servers[0].url),
-      });
-
-      try {
-        const dataToSave = await data.save();
-        reply.status(200).send(dataToSave);
-      } catch (error) {
-        reply.status(500).send({ message: error.message });
-      }
-    } catch (e) {
-      console.warn(e);
-    }
-  });
+  fastify.post("/manage/host", createHostHandler);
 
   /**
    * @name GET /manage/host
@@ -267,4 +269,7 @@ async function routes(fastify, options) {
   });
 }
 
-module.exports = fastifyPlugin(routes);
+module.exports = {
+  routes: fastifyPlugin(routes),
+  createHostHandler
+};

@@ -1,14 +1,17 @@
 const SwaggerParser = require("@apidevtools/swagger-parser");
 const mongoose = require("mongoose");
+const Builder = require("../models/models.builder");
+const EventBuilder = require("../models/models.eventBuilder");
+const OAS = require("../models/models.oas");
+const Nodes = require("../models/models.nodes");
+const Edges = require("../models/models.edges");
 
 const {
     getRequestParameters,
     getResponseParameters,
 } = require("./helpers.oas");
 
-const OAS = require("../models/models.oas");
-const Nodes = require("../models/models.nodes");
-const Edges = require("../models/models.edges");
+
 
 function getDataFromPath(arr, obj) {
     let currentObj = obj;
@@ -24,6 +27,22 @@ function getDataFromPath(arr, obj) {
 
     return currentObj; // Return the data from the last key in the array
 }
+
+
+// Custom reply object that captures the send result
+function createCustomReply() {
+    return {
+      status: function (code) {
+        this.statusCode = code;
+        return this; // For chaining status and send
+      },
+      send: function (payload) {
+        // Return the payload that would have been sent
+        return payload;
+      }
+    };
+  }
+  
 
 function generateRandomString(length = 12) {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";

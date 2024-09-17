@@ -236,6 +236,133 @@ async function routes(fastify, options) {
   });
 
   /**
+   * @name POST /manage/builder/create
+   * @description Create a new builder event with nodes and edges based on the provided template and fields.
+   * @param {string} [host_id=body] - ID of the host for which the builder is being created.
+   * @param {string} [hostname=body] - Hostname of the builder.
+   * @param {string} [path=body] - Path for the builder.
+   * @param {string} [method=body] - HTTP method for the builder.
+   * @return {dataToSave} **object** - The newly created builder event with nodes and edges.
+   * @example
+   * POST /manage/builder/create
+   */
+  fastify.post("/manage/builder/create", async (request, reply) => {
+    try {
+      const host = await Hosts.findById(request.body.host_id);
+      const parameters = await getFields({
+        request,
+        hostname: host.hostname,
+        oas_id: host.oas_spec,
+      });
+
+      console.log(parameters)
+
+      const fields = parameters[0];
+      const resFields = parameters[2];
+      const template = await BuilderTemplate.findOne({ template: true });
+
+      const truepath = (request.body.hostname + request.body.path).replace(
+        host.hostname,
+        ""
+      );
+
+      let editTemplate = JSON.stringify(template);
+
+      const gen1 = generateRandomString();
+      const gen2 = generateRandomString();
+      const gen3 = generateRandomString();
+      const gen4 = generateRandomString();
+
+      editTemplate = editTemplate.replace(/{{host}}/g, host.hostname);
+      editTemplate = editTemplate.replace(/{{method}}/g, request.body.method);
+      editTemplate = editTemplate.replace(/{{path}}/g, truepath);
+
+      editTemplate = editTemplate.replace(/{{gen-1}}/g, gen1);
+      editTemplate = editTemplate.replace(/{{gen-2}}/g, gen2);
+      editTemplate = editTemplate.replace(/{{gen-3}}/g, gen3);
+      editTemplate = editTemplate.replace(/{{gen-4}}/g, gen4);
+      editTemplate = editTemplate.replace(/{{gen-5}}/g, generateRandomString());
+      editTemplate = editTemplate.replace(/{{gen-6}}/g, generateRandomString());
+
+      let finalizedTemplate = JSON.parse(editTemplate);
+
+      Object.keys(fields).forEach((field) => {
+        fields[field].forEach((f) => {
+          const databayoo = {
+            source: gen1,
+            sourceHandle: `${field}.${f.name}`,
+            target: gen2,
+            targetHandle: `${field}.${f.name}`,
+            id: `${gen1}-${gen2}-${f.name}-${generateRandomString()}`,
+            animated: false,
+            style: {
+              stroke: getColor(f.schema["type"]),
+            },
+          };
+
+          finalizedTemplate.edges.push(databayoo);
+        });
+      });
+
+      Object.keys(resFields).forEach((field) => {
+        resFields[field].forEach((f) => {
+          const databayoo2 = {
+            source: gen3,
+            sourceHandle: `${field}.${f.name}`,
+            target: gen4,
+            targetHandle:
+              f.schema["type"] == "null" ? `sera.sera_start` : `${field}.${f.name}`,
+            id: `${gen3}-${gen4}-${f.name}-${generateRandomString()}`,
+            animated: f.schema["type"] == "null" ? true : false,
+            style: {
+              stroke: getColor(f.schema["type"]),
+            },
+          };
+
+          finalizedTemplate.edges.push(databayoo2);
+        });
+      });
+
+      let nodes;
+      let edges;
+
+      try {
+        const nodeSavePromises = finalizedTemplate.nodes.map((node) =>
+          new Nodes(node).save()
+        );
+        const savedNodes = await Promise.all(nodeSavePromises);
+        nodes = savedNodes.map((savedNode) => savedNode._id);
+
+        const edgeSavePromises = finalizedTemplate.edges.map((edge) =>
+          new Edges(edge).save()
+        );
+        const savedEdges = await Promise.all(edgeSavePromises);
+        edges = savedEdges.map((savedEdge) => savedEdge._id);
+      } catch (error) {
+        console.error("Error saving nodes or edges:", error);
+      }
+
+      const data = new Builder({
+        edges,
+        nodes,
+        enabled: true,
+      });
+
+      try {
+        const dataToSave = await data.save();
+        reply.status(200).send(dataToSave);
+      } catch (error) {
+        console.log("e1", error)
+        reply.status(500).send({ message: error.message });
+      }
+    } catch (error) {
+      console.log("e2", error)
+
+      reply.status(500).send({ message: error.message });
+    }
+  });
+
+  /**
    * @name POST /manage/builder/update
    * @description Update an existing builder event.
    * @param {string} [hostname=body] - Hostname of the builder event.
