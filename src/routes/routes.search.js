@@ -3,12 +3,13 @@
  * @description API endpoint for searching through hosts and endpoints.
  */
 
-const fastifyPlugin = require('fastify-plugin');
+import fastifyPlugin from 'fastify-plugin';
 
-const Hosts = require("../models/models.hosts");
-const Endpoints = require("../models/models.endpoints");
-const Oas = require("../models/models.oas")
-const { createHostHandler } = require('./routes.host');
+const { default: endpoints_model } = await import("../models/models.endpoints.cjs");
+const { default: hosts_model } = await import("../models/models.hosts.cjs");
+const { default: oas_model } = await import("../models/models.oas.cjs");
+
+import { createHostHandler } from './routes.host.js';
 
 async function aiSearchHandler(request, reply) {
   const debugAi = request.body?.debug || false
@@ -57,7 +58,7 @@ async function aiSearchHandler(request, reply) {
               break
             case "add_endpoint":
               console.log("adding endpoint")
-              let oasDoc = await oas_id ? Oas.findById(oas_id) : Oas.findOne({
+              let oasDoc = await oas_id ? oas_model.findById(oas_id) : oas_model.findOne({
                 'servers.url': element?.parameters?.hostname
               });
 
@@ -91,13 +92,13 @@ async function aiSearchHandler(request, reply) {
               console.log(oasDoc)
               console.log("THIS OASID: " + oas_id)
               if (oas_id) {
-                await Oas.findByIdAndUpdate(
+                await oas_model.findByIdAndUpdate(
                   oas_id,
                   { $set: { paths: oasDoc.paths } }, // Use $set to update or add the path/method
                   { new: false, upsert: false } // Return the updated document and create if not exists
                 );
               } else {
-                await Oas.findOneAndUpdate(
+                await oas_model.findOneAndUpdate(
                   { 'servers.url': element?.parameters?.hostname },
                   { $set: { paths: oasDoc.paths } },
                   { new: false, upsert: false } // Return the updated document and create if not exists
@@ -150,8 +151,8 @@ async function routes(fastify, options) {
 
       try {
         const [hosts, endpoints] = await Promise.all([
-          Hosts.find(hostSearchQuery).exec(),
-          Endpoints.find(endpointSearchQuery)
+          hosts_model.find(hostSearchQuery).exec(),
+          endpoints_model.find(endpointSearchQuery)
             .populate(["host_id"]).exec()
         ]);
         const results = hosts.concat(endpoints);
@@ -166,4 +167,4 @@ async function routes(fastify, options) {
   fastify.post("/manage/search/ai", aiSearchHandler)
 }
 
-module.exports = fastifyPlugin(routes);
+export default fastifyPlugin(routes);;

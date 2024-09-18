@@ -3,23 +3,25 @@
  * @description API endpoints for managing analytics and logs.
  */
 
-const fastifyPlugin = require('fastify-plugin');
-const fs = require('fs');
-const path = require('path');
-const readline = require('readline');
-const logsDirectory = path.join('/workspace/.logs');
-const timestampRegex1 = /\b(\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2})\b/; // YYYY/MM/DD HH:MM:SS
-const timestampRegex2 = /\[(\d{2}\/\w{3}\/\d{4}:\d{2}:\d{2}:\d{2} \+\d{4})\]/; // [24/Jun/2024:21:37:38 +0000]
-const TX_LOGS = require("../models/models.tx_logs");
-const seraSettings = require("../models/models.sera_settings");
+import fastifyPlugin from 'fastify-plugin';
+import fs from 'fs';
+import path from 'path';
+import readline from 'readline';
 
-const {
+
+const { default: tx_logs_model } = await import("../models/models.tx_logs.cjs");
+const { default: sera_settings_model } = await import("../models/models.sera_settings.cjs");
+
+import {
   organizeData,
   createSankeyData,
   createRadarChartData,
   getHostData
-} = require("../helpers/helpers.analytics")
+} from "../helpers/helpers.analytics.js";
 
+const logsDirectory = path.join('/workspace/.logs');
+const timestampRegex1 = /\b(\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2})\b/; // YYYY/MM/DD HH:MM:SS
+const timestampRegex2 = /\[(\d{2}\/\w{3}\/\d{4}:\d{2}:\d{2}:\d{2} \+\d{4})\]/; // [24/Jun/2024:21:37:38 +0000]
 
 async function routes(fastify, options) {
 
@@ -35,6 +37,7 @@ async function routes(fastify, options) {
    * GET /manage/analytics?period=daily&host=myhost.com
    */
   fastify.get("/manage/analytics", async (request, reply) => {
+    console.log("tet")
     try {
       const { period, host } = request.query;
 
@@ -76,8 +79,8 @@ async function routes(fastify, options) {
         query.hostname = host;
       }
 
-      const node_data = await TX_LOGS.find(query);
-      const sera_settings = await seraSettings.findOne({ "user": "admin" });
+      const node_data = await tx_logs_model.find(query);
+      const sera_settings = await sera_settings_model.findOne({ "user": "admin" });
 
       const endpointAreaChart = organizeData(node_data, period);
       const endpointSankeyChart = createSankeyData(node_data);
@@ -255,7 +258,7 @@ async function routes(fastify, options) {
         query.method = method.toUpperCase();
       }
       console.log(query);
-      const node_data = await TX_LOGS.find(query);
+      const node_data = await tx_logs_model.find(query);
       const endpointAreaChart = organizeData(node_data, period, 50);
 
       reply.send({
@@ -328,7 +331,7 @@ async function routes(fastify, options) {
         query.method = method.toUpperCase();
       }
       console.log(query);
-      const node_data = await TX_LOGS.find(query);
+      const node_data = await tx_logs_model.find(query);
       const hostData = getHostData(node_data);
 
       reply.send({
@@ -341,4 +344,4 @@ async function routes(fastify, options) {
 
 }
 
-module.exports = fastifyPlugin(routes);
+export default fastifyPlugin(routes);;

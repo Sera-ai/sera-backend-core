@@ -3,18 +3,22 @@
  * @description API endpoints for managing hosts, OpenAPI Specifications (OAS), and DNS configurations.
  */
 
-const fastifyPlugin = require('fastify-plugin');
+import fastifyPlugin from 'fastify-plugin';
 
-const Hosts = require("../models/models.hosts");
-const OAS = require("../models/models.oas");
-const DNS = require("../models/models.dns");
 
-const Converter = require("api-spec-converter");
-const yaml = require("js-yaml");
+const { default: dns_model } = await import("../models/models.hosts.cjs");
+const { default: hosts_model } = await import("../models/models.hosts.cjs");
+const { default: oas_model } = await import("../models/models.oas.cjs");
 
-const { generateRandomString } = require("../helpers/helpers.general");
 
-async function createHostHandler(request, reply) {
+
+import Converter from "api-spec-converter";
+import yaml from "js-yaml";
+
+import { generateRandomString } from "../helpers/helpers.general.js";
+
+
+export async function createHostHandler(request, reply) {
   let oas;
   let oasJsonFinal = {};
   try {
@@ -50,7 +54,7 @@ async function createHostHandler(request, reply) {
 
     let hostdomain;
     if (!request.body?.oas) {
-      oas = new OAS({
+      oas = new oas_model({
         openapi: "3.0.1",
         info: {
           title: "Minimal API",
@@ -94,13 +98,13 @@ async function createHostHandler(request, reply) {
             source: oasJson,
           },
           function (err, converted) {
-            oas = new OAS(converted);
+            oas = new oas_model(converted);
             hostdomain = getSecondToLastElement(converted.servers[0].url);
             oasJsonFinal = converted;
           }
         );
       } else {
-        oas = new OAS(oasJson);
+        oas = new oas_model(oasJson);
         oasJsonFinal = oasJson;
         hostdomain = getSecondToLastElement(oasJson.servers[0].url);
       }
@@ -108,7 +112,7 @@ async function createHostHandler(request, reply) {
 
     const oasSave = await oas.save();
     const subdo = `${hostdomain.substring(0, 40)}-${generateRandomString(6)}`;
-    const dns = new DNS({
+    const dns = new dns_model({
       sera_config: {
         domain: cleanUrl(hostdomain),
         expires: null,
@@ -172,11 +176,11 @@ async function routes(fastify, options) {
     try {
       let node_data;
       if (request.query.id) {
-        node_data = await Hosts.find({ _id: request.query.id }).populate([
+        node_data = await hosts_model.find({ _id: request.query.id }).populate([
           "oas_spec",
         ]);
       } else {
-        node_data = await Hosts.find().populate(["oas_spec"]).limit(100);
+        node_data = await hosts_model.find().populate(["oas_spec"]).limit(100);
       }
       reply.send(node_data);
     } catch (error) {
@@ -206,7 +210,7 @@ async function routes(fastify, options) {
       let updateObject = { $set: {} };
       updateObject.$set[`sera_config.${field}`] = request.body.key;
 
-      const updatedHost = await Hosts.findByIdAndUpdate(
+      const updatedHost = await hosts_model.findByIdAndUpdate(
         request.body.host_id,
         updateObject,
         { new: true }
@@ -234,11 +238,11 @@ async function routes(fastify, options) {
     try {
       let node_data;
       if (request.query.host) {
-        host_data = await Hosts.findOne({ hostname: request.query.host });
-        oas_data = await OAS.findOne({ _id: host_data.oas_spec });
+        host_data = await hosts_model.findOne({ hostname: request.query.host });
+        oas_data = await oas_model.findOne({ _id: host_data.oas_spec });
         reply.send(oas_data);
       } else {
-        oas_data = await OAS.find();
+        oas_data = await oas_model.find();
         reply.send(oas_data);
       }
     } catch (error) {
@@ -257,8 +261,8 @@ async function routes(fastify, options) {
   fastify.get("/manage/host/dns", async (request, reply) => {
     try {
       if (request.query.host) {
-        host_data = await Hosts.findOne({ hostname: request.query.host });
-        dns_data = await DNS.findOne({ _id: host_data.sera_dns });
+        host_data = await hosts_model.findOne({ hostname: request.query.host });
+        dns_data = await dns_model.findOne({ _id: host_data.sera_dns });
         reply.send(dns_data);
       } else {
         reply.status(500).send({ message: "no host provided" });
@@ -269,7 +273,7 @@ async function routes(fastify, options) {
   });
 }
 
-module.exports = {
+export default {
   routes: fastifyPlugin(routes),
   createHostHandler
 };

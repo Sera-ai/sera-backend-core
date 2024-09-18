@@ -1,16 +1,19 @@
-const SwaggerParser = require("@apidevtools/swagger-parser");
-const mongoose = require("mongoose");
-const Builder = require("../models/models.builder");
-const EventBuilder = require("../models/models.eventBuilder");
-const IntegrationBuilder = require("../models/models.integrations");
-const OAS = require("../models/models.oas");
-const Nodes = require("../models/models.nodes");
-const Edges = require("../models/models.edges");
+import SwaggerParser from "@apidevtools/swagger-parser";
+import mongoose from "mongoose";
 
-const {
+
+const { default: event_builder_model } = await import("../models/models.event_builder.cjs");
+const { default: oas_model } = await import("../models/models.oas.cjs");
+const { default: endpoint_builder_model } = await import("../models/models.endpoint_builder.cjs");
+const { default: integration_builder_model } = await import("../models/models.integration_builder.cjs");
+const { default: builder_node_model } = await import("../models/models.builder_node.cjs");
+const { default: builder_edge_model } = await import("../models/models.builder_edge.cjs");
+
+
+import {
     getRequestParameters,
     getResponseParameters,
-} = require("./helpers.oas");
+} from "./helpers.oas.js";
 
 
 
@@ -30,22 +33,8 @@ function getDataFromPath(arr, obj) {
 }
 
 
-// Custom reply object that captures the send result
-function createCustomReply() {
-    return {
-        status: function (code) {
-            this.statusCode = code;
-            return this; // For chaining status and send
-        },
-        send: function (payload) {
-            // Return the payload that would have been sent
-            return payload;
-        }
-    };
-}
 
-
-function generateRandomString(length = 12) {
+export function generateRandomString(length = 12) {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
     let result = "";
     for (let i = 0; i < length; i++) {
@@ -55,12 +44,12 @@ function generateRandomString(length = 12) {
     return result;
 }
 
-async function getFields({ request, hostname, oas_id }) {
+export async function getFields({ request, hostname, oas_id }) {
     try {
 
         const path = request.body.path == "" ? "/" : request.body.path
         const method = request.body.method
-        const oas = await OAS.findById(oas_id);
+        const oas = await oas_model.findById(oas_id);
         const oasPathways = [path, method.toLowerCase()];
         const pathwayData = getDataFromPath(oasPathways, oas.paths);
 
@@ -79,7 +68,7 @@ async function getFields({ request, hostname, oas_id }) {
     }
 }
 
-const getColor = (type) => {
+export const getColor = (type) => {
     switch (type) {
         case "integer":
             return "#a456e5";
@@ -94,7 +83,7 @@ const getColor = (type) => {
     }
 };
 
-function stringToSlug(str) {
+export function stringToSlug(str) {
     return str
         .toLowerCase() // Convert to lowercase
         .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
@@ -103,13 +92,13 @@ function stringToSlug(str) {
         .trim(); // Trim leading/trailing spaces and hyphens
 }
 
-async function getBuilder(builderId, parameters, response, builderType = 0) {
+export async function getBuilder(builderId, parameters, response, builderType = 0) {
     let inventoryRes
 
     switch (builderType) {
-        case 0: inventoryRes = await Builder.findById(builderId); break;
-        case 1: inventoryRes = await EventBuilder.findOne({ slug: builderId }); break;
-        case 2: inventoryRes = await IntegrationBuilder.findOne({ slug: builderId }); break;
+        case 0: inventoryRes = await endpoint_builder_model.findById(builderId); break;
+        case 1: inventoryRes = await event_builder_model.findOne({ slug: builderId }); break;
+        case 2: inventoryRes = await integration_builder_model.findOne({ slug: builderId }); break;
     }
 
     if (!inventoryRes) {
@@ -124,7 +113,7 @@ async function getBuilder(builderId, parameters, response, builderType = 0) {
         (edge) => new mongoose.Types.ObjectId(edge._id)
     );
 
-    const nodes = await Nodes.find({
+    const nodes = await builder_node_model.find({
         _id: { $in: nodeIds },
     });
 
@@ -145,7 +134,7 @@ async function getBuilder(builderId, parameters, response, builderType = 0) {
     });
 
     const edges = (
-        await Edges.find({
+        await builder_edge_model.find({
             _id: { $in: edgeIds },
         }).lean()
     ).map((edge) => ({
@@ -156,11 +145,3 @@ async function getBuilder(builderId, parameters, response, builderType = 0) {
     return { nodes, edges };
 }
 
-module.exports = {
-    stringToSlug,
-    getBuilder,
-    getColor,
-    getFields,
-    generateRandomString,
-    getDataFromPath,
-}

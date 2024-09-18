@@ -3,29 +3,28 @@
  * @description API endpoints for managing builder events and nodes.
  */
 
-const fastifyPlugin = require('fastify-plugin');
-const mongoose = require("mongoose");
-const axios = require("axios");
-const SwaggerParser = require("@apidevtools/swagger-parser");
+import fastifyPlugin from 'fastify-plugin';
+import mongoose from "mongoose";
+import axios from "axios";
+import SwaggerParser from "@apidevtools/swagger-parser";
 
-const Hosts = require("../models/models.hosts");
-const OAS = require("../models/models.oas");
-const Builder = require("../models/models.builder");
-const EventBuilder = require("../models/models.eventBuilder");
-const BuilderTemplate = require("../models/models.builder_template");
-const IntegrationBuilder = require("../models/models.integrations");
-const SeraSettings = require("../models/models.sera_settings");
-const EventStruc = require("../models/models.eventStruc");
-const Nodes = require("../models/models.nodes");
-const Edges = require("../models/models.edges");
-const Endpoints = require("../models/models.endpoints");
 
-const {
+const { default: event_builder_model } = await import("../models/models.event_builder.cjs");
+const { default: event_struc_model } = await import("../models/models.event_struc.cjs");
+const { default: endpoints_model } = await import("../models/models.oas.cjs");
+const { default: endpoint_builder_model } = await import("../models/models.endpoint_builder.cjs");
+const { default: builder_template_model } = await import("../models/models.builder_template.cjs");
+const { default: integration_builder_model } = await import("../models/models.integration_builder.cjs");
+const { default: builder_node_model } = await import("../models/models.builder_node.cjs");
+const { default: builder_edge_model } = await import("../models/models.builder_edge.cjs");
+
+
+import {
   getRequestParameters,
   getResponseParameters,
-} = require("../helpers/helpers.oas");
+} from "../helpers/helpers.oas.js";
 
-const { getBuilder, getColor, getFields, generateRandomString } = require("../helpers/helpers.general")
+import { getBuilder, getColor, getFields, generateRandomString } from "../helpers/helpers.general.js";
 
 async function routes(fastify, options) {
 
@@ -41,12 +40,12 @@ async function routes(fastify, options) {
     try {
       let node_data;
       if (request.query.id) {
-        node_data = await Endpoints.find({ _id: request.query.id }).populate([
+        node_data = await endpoints_model.find({ _id: request.query.id }).populate([
           "host_id",
           "builder_id",
         ]);
       } else {
-        node_data = await Endpoints.find()
+        node_data = await endpoints_model.find()
           .populate(["host_id", "builder_id"])
           .limit(100);
       }
@@ -69,7 +68,7 @@ async function routes(fastify, options) {
    */
   fastify.post("/manage/builder", async (request, reply) => {
     try {
-      const data1 = await Hosts.findById(request.body.host_id);
+      const data1 = awaithosts_model.findById(request.body.host_id);
       const truepath = (request.body.hostname + request.body.endpoint).replace(
         data1.hostname,
         ""
@@ -77,7 +76,7 @@ async function routes(fastify, options) {
 
       let host_id = data1._id;
 
-      const data = new Endpoints({
+      const data = new endpoints_model({
         host_id: host_id,
         builder_id: request.body.builder_id ?? null,
         endpoint: truepath,
@@ -132,11 +131,11 @@ async function routes(fastify, options) {
 
         const substringToMatch = parsed.host.split(":")[0];
 
-        const matchingOas = await OAS.find({
+        const matchingOas = awaitoas_model.find({
           "servers.url": { $regex: substringToMatch },
         });
 
-        const matchingHosts = await Hosts.find({
+        const matchingHosts = awaithosts_model.find({
           hostname: { $regex: substringToMatch },
         });
 
@@ -175,7 +174,7 @@ async function routes(fastify, options) {
 
         const truepath = `/${path}`;
 
-        mongoEndpoint = await Endpoints.findOne({
+        mongoEndpoint = await endpoints_model.findOne({
           host_id: host._id,
           endpoint: (truepath.charAt(0) == "/" ? "" : "/") + truepath,
           method: method,
@@ -196,7 +195,7 @@ async function routes(fastify, options) {
             api.paths[truepath][method.toLocaleLowerCase()].responses
           );
         } catch (error) {
-          console.error("Error parsing OAS document:", error);
+          console.error("Error parsingoas_model document:", error);
         }
       }
 
@@ -248,7 +247,7 @@ async function routes(fastify, options) {
    */
   fastify.post("/manage/builder/create", async (request, reply) => {
     try {
-      const host = await Hosts.findById(request.body.host_id);
+      const host = awaithosts_model.findById(request.body.host_id);
       const parameters = await getFields({
         request,
         hostname: host.hostname,
@@ -259,7 +258,7 @@ async function routes(fastify, options) {
 
       const fields = parameters[0];
       const resFields = parameters[2];
-      const template = await BuilderTemplate.findOne({ template: true });
+      const template = await builder_template_model.findOne({ template: true });
 
       const truepath = (request.body.hostname + request.body.path).replace(
         host.hostname,
@@ -328,13 +327,13 @@ async function routes(fastify, options) {
 
       try {
         const nodeSavePromises = finalizedTemplate.nodes.map((node) =>
-          new Nodes(node).save()
+          new builder_node_model(node).save()
         );
         const savedNodes = await Promise.all(nodeSavePromises);
         nodes = savedNodes.map((savedNode) => savedNode._id);
 
         const edgeSavePromises = finalizedTemplate.edges.map((edge) =>
-          new Edges(edge).save()
+          new builder_edge_model(edge).save()
         );
         const savedEdges = await Promise.all(edgeSavePromises);
         edges = savedEdges.map((savedEdge) => savedEdge._id);
@@ -342,7 +341,7 @@ async function routes(fastify, options) {
         console.error("Error saving nodes or edges:", error);
       }
 
-      const data = new Builder({
+      const data = new endpoint_builder_model({
         edges,
         nodes,
         enabled: true,
@@ -375,9 +374,9 @@ async function routes(fastify, options) {
    */
   fastify.post("/manage/builder/update", async (request, reply) => {
     try {
-      const data1 = await Hosts.find({ forwards: request.body.hostname });
+      const data1 = awaithosts_model.find({ forwards: request.body.hostname });
       let host_id = data1[0]._id;
-      const endpoint = await Endpoints.find({
+      const endpoint = await endpoints_model.find({
         host_id: host_id,
         endpoint: request.body.endpoint,
         method: request.body.method,
@@ -413,7 +412,7 @@ async function routes(fastify, options) {
         let nodeDataToBeSaved = request.body;
 
         if (nodeDataToBeSaved.type == "sendEventNode") {
-          const struct = new EventStruc({
+          const struct = new event_struc_model({
             event: "builder-default",
             type: "new Event",
             description: "new event",
@@ -423,11 +422,11 @@ async function routes(fastify, options) {
           nodeDataToBeSaved.data.struc_id = sendEventNodeId._id;
         }
 
-        const nodedata = new Nodes(nodeDataToBeSaved);
+        const nodedata = new builder_node_model(nodeDataToBeSaved);
         const savedData = await nodedata.save();
 
         if (request.query.type == "builder") {
-          Builder.findByIdAndUpdate(builderId, {
+          endpoint_builder_model.findByIdAndUpdate(builderId, {
             $push: { nodes: new mongoose.Types.ObjectId(savedData._id) },
           }).then((e) => {
             socket.wsEmit("nodeCreated", {
@@ -438,8 +437,8 @@ async function routes(fastify, options) {
         } else {
           let BuilderModel;
           switch (request.query.type) {
-            case "event": BuilderModel = EventBuilder; break;
-            case "integration": BuilderModel = IntegrationBuilder; break;
+            case "event": BuilderModel = event_builder_model; break;
+            case "integration": BuilderModel = integration_builder_model; break;
           }
 
           BuilderModel.findOneAndUpdate(
@@ -476,4 +475,4 @@ async function routes(fastify, options) {
   });
 }
 
-module.exports = fastifyPlugin(routes);
+export default fastifyPlugin(routes);;

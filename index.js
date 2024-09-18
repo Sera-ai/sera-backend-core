@@ -1,20 +1,23 @@
-require("dotenv").config();
-const Fastify = require("fastify");
-const mongoose = require("mongoose");
-const WebSocket = require("ws");
-const gridfs = require('mongoose-gridfs');
+import 'dotenv/config';
+import Fastify from "fastify";
+import mongoose from "mongoose";
+import WebSocket from "ws";
+import gridfs from 'mongoose-gridfs';
 
-const hostRoutes = require("./src/routes/routes.host");
-const builderRoutes = require("./src/routes/routes.builder");
-const integrationRoutes = require("./src/routes/routes.integration");
-const eventRoutes = require("./src/routes/routes.events");
-const searchRoutes = require("./src/routes/routes.search");
-const analyticsRoutes = require("./src/routes/routes.analytics");
-const seraEvents = require("./src/models/models.seraEvents")
+import hostRoutes from "./src/routes/routes.host.js";
+import builderRoutes from "./src/routes/routes.builder.js";
+import integrationRoutes from "./src/routes/routes.integration.js";
+import eventRoutes from "./src/routes/routes.events.js";
+import searchRoutes from "./src/routes/routes.search.js";
+import analyticsRoutes from "./src/routes/routes.analytics.js";
+
+const { default: sera_events_model } = await import("./src/models/models.sera_events.cjs");
+
 
 const mongoString = process.env.DB_HOST;
 const port = process.env.BE_BUILDER_PORT;
 let socket;
+
 
 function connectWebSocket() {
   socket = new WebSocket(`ws://localhost:12040/sera-socket-io`);
@@ -74,9 +77,9 @@ let attachment;
     console.log("Database Connected");
 
     // Register Fastify plugins
-    // await app.register(require('@fastify/cors'), { origin: "*" });
-    await app.register(require('@fastify/formbody'));
-    await app.register(require('@fastify/multipart'), {
+    // await app.register(import('@fastify/cors'), { origin: "*" });
+    await app.register((await import('@fastify/formbody')).default);
+    await app.register((await import('@fastify/multipart')).default, {
       limits: {
         fileSize: 10000000, // Set to 10 MB or adjust as needed
       },
@@ -106,7 +109,7 @@ let attachment;
         console.log(err);
         process.exit(1);
       }
-      seraEvents.create({ event: "sera", type: "seraStart", srcIp: "127.0.0.1", data: { result: "success", timestamp: new Date().getTime() } })
+      sera_events_model.create({ event: "sera", type: "seraStart", srcIp: "127.0.0.1", data: { result: "success", timestamp: new Date().getTime() } })
       console.log(`Builder Started at ${port}`);
     });
   } catch (error) {

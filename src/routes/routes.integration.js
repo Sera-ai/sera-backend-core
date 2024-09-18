@@ -3,15 +3,18 @@
  * @description API endpoints for managing integration builders and plugins.
  */
 
-const mongoose = require("mongoose");
-const fastifyPlugin = require('fastify-plugin');
-const IntegrationBuilder = require("../models/models.integrations");
-const GridFsFile = require("../models/models.GridFsFile");
-const Nodes = require("../models/models.nodes");
-const Edges = require("../models/models.edges");
-const OAS = require("../models/models.oas");
-const { stringToSlug, getBuilder } = require("../helpers/helpers.general")
+import mongoose from "mongoose";
+import fastifyPlugin from 'fastify-plugin';
 
+
+
+const { default: gridfs_model } = await import("../models/models.gridfs.cjs");
+const { default: integration_builder_model } = await import("../models/models.integration_builder.cjs");
+const { default: builder_node_model } = await import("../models/models.builder_node.cjs");
+const { default: builder_edge_model } = await import("../models/models.builder_edge.cjs");
+
+
+import { stringToSlug, getBuilder } from "../helpers/helpers.general.js";
 
 
 async function routes(fastify, options) {
@@ -76,7 +79,7 @@ async function routes(fastify, options) {
         enabled: true,
       };
   
-      const integration = new IntegrationBuilder(integration_data);
+      const integration = new integration_builder_model(integration_data);
       const savedData = await integration.save();
       reply.send({ slug: savedData.slug });
   
@@ -146,7 +149,7 @@ async function routes(fastify, options) {
    */
   fastify.get("/manage/builder/integrations", async (request, reply) => {
     try {
-      const node_data = await IntegrationBuilder.find();
+      const node_data = await integration_builder_model.find();
 
       const transformedData = node_data.map((item) => {
         const tData = {
@@ -175,7 +178,7 @@ async function routes(fastify, options) {
    */
   fastify.get("/manage/builder/integration/plugins", async (request, reply) => {
     try {
-      const node_data = await IntegrationBuilder.find().populate(["nodes"]);
+      const node_data = await integration_builder_model.find().populate(["nodes"]);
 
       const transformedData = []
 
@@ -201,7 +204,7 @@ async function routes(fastify, options) {
       const rId = new mongoose.Types.ObjectId(fileId);
 
       // Fetch the file metadata from fs.files collection using Mongoose
-      const file = await GridFsFile.findOne({ _id: rId }).lean()
+      const file = await gridfs_model.findOne({ _id: rId }).lean()
 
       if (!file) {
         console.error("File not found");
@@ -252,4 +255,4 @@ async function routes(fastify, options) {
 
 }
 
-module.exports = fastifyPlugin(routes);
+export default fastifyPlugin(routes);;

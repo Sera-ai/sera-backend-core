@@ -1,4 +1,4 @@
-const { format, subDays, subWeeks, subMonths, subHours, startOfDay, startOfWeek, startOfMonth, startOfHour, isBefore, isAfter, addDays } = require('date-fns');
+import { format, subDays, subWeeks, subMonths, subHours, startOfDay, startOfWeek, startOfMonth, startOfHour, isBefore, isAfter, addDays } from 'date-fns';
 
 
 // Helper function to get the start of the period
@@ -43,7 +43,7 @@ const getPreviousPeriods = (date, period, count) => {
     return periods.reverse();
 };
 
-const organizeData = (node_data, period, count = 5) => {
+export const organizeData = (node_data, period, count = 5) => {
     const currentDate = new Date();
     const periods = getPreviousPeriods(currentDate, period, count);
     const dataMap = {};
@@ -76,7 +76,7 @@ const organizeData = (node_data, period, count = 5) => {
     return Object.values(dataMap);
 };
 
-const createSankeyData = (node_data) => {
+export const createSankeyData = (node_data) => {
     const nodes = [];
     const nodeIndex = {};
     const links = [];
@@ -125,7 +125,7 @@ const createSankeyData = (node_data) => {
     return { nodes, links };
 };
 
-const createRadarChartData = (node_data, startTimestamp, endTimestamp, sera_settings) => {
+export const createRadarChartData = (node_data, startTimestamp, endTimestamp, sera_settings) => {
     const totalRequests = node_data.length;
     const successfulRequests = node_data.filter(item => item.response.status === 200).length;
     const uptime = (totalRequests - node_data.filter(item => item.response.status >= 400).length) / totalRequests * 100;
@@ -182,7 +182,7 @@ const createRadarChartData = (node_data, startTimestamp, endTimestamp, sera_sett
     ];
 };
 
-const getHostData = (nodeData) => {
+export const getHostData = (nodeData) => {
     const details = {
         Status: "Active",
         "Endpoint Type": "REST API",
@@ -201,10 +201,3 @@ const getHostData = (nodeData) => {
 
     return { details, statistics };
 };
-
-module.exports = {
-    organizeData,
-    createSankeyData,
-    createRadarChartData,
-    getHostData
-}

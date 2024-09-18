@@ -1,4 +1,4 @@
-function getRequestParameters(endpoint, api) {
+export function getRequestParameters(endpoint, api) {
   let parameters = { query: [], body: [], path: [], cookie: [], header: [] };
   parameters.body = extractRequestBodyDetails(endpoint, api); // Extract requestBody details
   //console.log("After extractRequestBodyDetails:", parameters.body); // Log the body after extraction
@@ -94,7 +94,7 @@ function extractRequestBodyDetails(endpoint, oas) {
   return parameters;
 }
 
-function getResponseParameters(endpoint, oas) {
+export function getResponseParameters(endpoint, oas) {
   let responseParameters = {
     "Status Codes": [],
     headers: [], // This will aggregate headers from all responses
@@ -158,8 +158,3 @@ function getResponseParameters(endpoint, oas) {
 
   return responseParameters;
 }
-
-module.exports = {
-  getRequestParameters,
-  getResponseParameters,
-};

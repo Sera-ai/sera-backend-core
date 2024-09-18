@@ -3,10 +3,11 @@
  * @description API endpoints for managing Sera events and event playbooks.
  */
 
-const fastifyPlugin = require('fastify-plugin');
+import fastifyPlugin from 'fastify-plugin';;
 
-const EventBuilder = require("../models/models.eventBuilder");
-const seraEvents = require("../models/models.seraEvents");
+const { default: event_builder_model } = await import("../models/models.event_builder.cjs");
+const { default: sera_events_model } = await import("../models/models.sera_events.cjs");
+
 
 async function routes(fastify, options) {
   /**
@@ -21,7 +22,7 @@ async function routes(fastify, options) {
     try {
       let query = {};
       if (request.query.id) query._id = request.query.id;
-      const node_data = await seraEvents.find(query);
+      const node_data = await sera_events_model.find(query);
       const transformedData = node_data.map((item) => {
         let maleableItem = { ...item._doc };
         delete maleableItem.__v;
@@ -58,7 +59,7 @@ async function routes(fastify, options) {
     try {
       let node_data = request.body;
 
-      seraEvents.create({ event: "builder", type: node_data.event_name, data: node_data.data });
+      sera_events_model.create({ event: "builder", type: node_data.event_name, data: node_data.data });
 
       reply.send("ok");
     } catch (error) {
@@ -75,7 +76,7 @@ async function routes(fastify, options) {
    */
   fastify.get("/manage/events/playbook", async (request, reply) => {
     try {
-      const node_data = await EventBuilder.find();
+      const node_data = await event_builder_model.find();
 
       const transformedData = node_data.map((item) => {
         return {
@@ -104,4 +105,4 @@ function normalizeEventInventory(eventInventory) {
   });
 }
 
-module.exports = fastifyPlugin(routes);
+export default fastifyPlugin(routes);;
