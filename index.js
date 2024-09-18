@@ -68,9 +68,7 @@ let attachment;
     });
 
     attachment = gridfs.createBucket({
-      collection: 'uploads',  // GridFS collection for uploaded files
-      model: 'Attachment',    // Mongoose model name
-      mongooseConnection: mongoose.connection,  // Use the established Mongoose connection
+      connection: mongoose.connection,  // Use the established Mongoose connection
     });
 
     console.log("Database Connected");
