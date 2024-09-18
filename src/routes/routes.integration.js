@@ -13,6 +13,8 @@ const { stringToSlug, getBuilder } = require("../helpers/helpers.general")
 
 
 async function routes(fastify, options) {
+  const gfs = options.gfs;  // Access the GridFS stream instance
+
   /**
    * @name POST /manage/builder/integration
    * @description Create a new integration builder.
@@ -23,49 +25,70 @@ async function routes(fastify, options) {
    */
   fastify.post("/manage/builder/integration", async (request, reply) => {
     try {
-      const data = await request.file();  // Parse the file from multipart form-data
-      const parts = request.parts();      // Parse form fields
+      const parts = request.parts();  // Parse multipart form data
       let fields = {};
-
+      let fileData = null;
+  
+      console.log("Processing multipart data...");
+  
       for await (const part of parts) {
-        if (!part.file) {
-          fields[part.fieldname] = part.value; // Collect form fields
+        console.log('Part received:', part.fieldname);
+        
+        if (part.file) {
+          console.log('Received a file:', part.filename);
+  
+          // Handle file data
+          fileData = part;
+  
+          const writeStream = gfs.createWriteStream({
+            filename: part.filename,
+            contentType: part.mimetype
+          });
+  
+          // Pipe file stream to GridFS or any destination
+          part.file.pipe(writeStream)
+            .on('error', (err) => {
+              console.error('File stream error:', err);
+              reply.status(500).send({ error: 'File upload failed' });
+            })
+            .on('finish', (file) => {
+              console.log('File saved to GridFS with ID:', file._id);
+              // Store the file ObjectId and proceed
+              fields.image = file._id;
+            });
+        } else {
+          // Collect form fields
+          fields[part.fieldname] = part.value;
+          console.log('Received field:', part.fieldname, part.value);
         }
       }
-
-      if (!fields.name) throw new Error("Required parameters missing");
-
-      let integration_data = {
+  
+      if (!fileData) {
+        throw new Error("No file uploaded");
+      }
+  
+      // Create and save the new integration using the collected form fields and image file reference
+      const integration_data = {
         name: fields.name,
         slug: stringToSlug(fields.name),
         type: "API Endpoint",
-        hostname: fields.hostname ?? "",
+        hostname: fields.hostname || "",
+        image: fields.image,  // File ID saved in the database
         nodes: [],
         edges: [],
         enabled: true,
-        image: null
       };
-
-      const slugCheck = await IntegrationBuilder.find({ slug: integration_data.slug });
-      if (slugCheck.length > 0) throw new Error("Name duplicate");
-
-      // Process the uploaded file (if needed)
-      if (data && data.file) {
-        // Example: Save the file using GridFS or some other method
-        const fileId = await saveFileToGridFS(data.file, data.filename);
-        integration_data.image = fileId;  // Store the file reference in the integration_data
-      }
-
-      const integrationData = new IntegrationBuilder(integration_data);
-      const savedData = await integrationData.save();
-      savedData.id = savedData._id;
-
+  
+      const integration = new IntegrationBuilder(integration_data);
+      const savedData = await integration.save();
       reply.send({ slug: savedData.slug });
+  
     } catch (error) {
+      console.error("Error processing integration:", error);
       reply.status(500).send({ message: error.message });
     }
   });
-
+  
 
   /**
    * @name GET /manage/builder/integration

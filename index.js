@@ -62,22 +62,33 @@ let gfs;
 
 (async () => {
   try {
+
+
     await mongoose.connect(`${mongoString}/Sera`, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
-    
+
     const db = mongoose.connection.db;
     gfs = gridfsStream(db, mongoose.mongo); // Initialize GridFS stream with Mongoose
     gfs.collection('uploads'); // Set the GridFS collection
 
+    var writestream = gfs.createWriteStream({
+      filename: 'my_file.txt'
+    });
 
     console.log("Database Connected");
 
     // Register Fastify plugins
     // await app.register(require('@fastify/cors'), { origin: "*" });
     await app.register(require('@fastify/formbody'));
-    await app.register(require('@fastify/multipart'));
+    await app.register(require('@fastify/multipart'), {
+      limits: {
+        fileSize: 10000000, // Set to 10 MB or adjust as needed
+      },
+      logger: true,
+      bodyLimit: 10485760,
+    });
 
     // Register the multipart plugin
     app.setErrorHandler((error, request, reply) => {
@@ -93,7 +104,7 @@ let gfs;
     app.register(builderRoutes);
     app.register(eventRoutes);
     app.register(analyticsRoutes);
-    app.register(integrationRoutes);
+    app.register(integrationRoutes, { gfs });
 
     // Start the server
     app.listen({ port, host: '0.0.0.0' }, (err) => {
