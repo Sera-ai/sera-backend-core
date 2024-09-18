@@ -2,7 +2,7 @@ require("dotenv").config();
 const Fastify = require("fastify");
 const mongoose = require("mongoose");
 const WebSocket = require("ws");
-const gridfsStream = require('gridfs-stream');
+const gridfs = require('mongoose-gridfs');
 
 const hostRoutes = require("./src/routes/routes.host");
 const builderRoutes = require("./src/routes/routes.builder");
@@ -58,23 +58,19 @@ function connectWebSocket() {
 connectWebSocket();
 
 const app = Fastify();
-let gfs;
+let attachment;
 
 (async () => {
   try {
-
-
     await mongoose.connect(`${mongoString}/Sera`, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
 
-    const db = mongoose.connection.db;
-    gfs = gridfsStream(db, mongoose.mongo); // Initialize GridFS stream with Mongoose
-    gfs.collection('uploads'); // Set the GridFS collection
-
-    var writestream = gfs.createWriteStream({
-      filename: 'my_file.txt'
+    attachment = gridfs.createBucket({
+      collection: 'uploads',  // GridFS collection for uploaded files
+      model: 'Attachment',    // Mongoose model name
+      mongooseConnection: mongoose.connection,  // Use the established Mongoose connection
     });
 
     console.log("Database Connected");
@@ -104,7 +100,7 @@ let gfs;
     app.register(builderRoutes);
     app.register(eventRoutes);
     app.register(analyticsRoutes);
-    app.register(integrationRoutes, { gfs });
+    app.register(integrationRoutes, { attachment });
 
     // Start the server
     app.listen({ port, host: '0.0.0.0' }, (err) => {

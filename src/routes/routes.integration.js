@@ -25,64 +25,49 @@ async function routes(fastify, options) {
    */
   fastify.post("/manage/builder/integration", async (request, reply) => {
     try {
-      const parts = request.parts();  // Parse multipart form data
+      const parts = request.parts();  // Parse multipart form data (fields + files)
       let fields = {};
-      let fileData = null;
-  
-      console.log("Processing multipart data...");
-  
+      let fileId = null;
+
       for await (const part of parts) {
-        console.log('Part received:', part.fieldname);
-        
         if (part.file) {
-          console.log('Received a file:', part.filename);
-  
-          // Handle file data
-          fileData = part;
-  
-          const writeStream = gfs.createWriteStream({
+          // Handle file upload with mongoose-gridfs
+          const writeStream = attachment.write({
             filename: part.filename,
             contentType: part.mimetype
+          }, part.file, (error, file) => {
+            if (error) {
+              throw new Error('Error writing file to GridFS');
+            }
+            console.log('File uploaded with ID:', file._id);
+            fileId = file._id;  // Store the file's ObjectId
           });
-  
-          // Pipe file stream to GridFS or any destination
-          part.file.pipe(writeStream)
-            .on('error', (err) => {
-              console.error('File stream error:', err);
-              reply.status(500).send({ error: 'File upload failed' });
-            })
-            .on('finish', (file) => {
-              console.log('File saved to GridFS with ID:', file._id);
-              // Store the file ObjectId and proceed
-              fields.image = file._id;
-            });
         } else {
           // Collect form fields
           fields[part.fieldname] = part.value;
-          console.log('Received field:', part.fieldname, part.value);
         }
       }
-  
-      if (!fileData) {
+
+      if (!fileId) {
         throw new Error("No file uploaded");
       }
-  
-      // Create and save the new integration using the collected form fields and image file reference
+
+      // Create and save the new integration using the collected form fields and file reference
       const integration_data = {
         name: fields.name,
         slug: stringToSlug(fields.name),
         type: "API Endpoint",
         hostname: fields.hostname || "",
-        image: fields.image,  // File ID saved in the database
+        image: fileId,  // Reference to the uploaded file
         nodes: [],
         edges: [],
         enabled: true,
       };
-  
+
       const integration = new IntegrationBuilder(integration_data);
       const savedData = await integration.save();
       reply.send({ slug: savedData.slug });
-  
+
     } catch (error) {
       console.error("Error processing integration:", error);
       reply.status(500).send({ message: error.message });
