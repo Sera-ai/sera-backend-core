@@ -11,13 +11,14 @@ import SwaggerParser from "@apidevtools/swagger-parser";
 
 const { default: event_builder_model } = await import("../models/models.event_builder.cjs");
 const { default: event_struc_model } = await import("../models/models.event_struc.cjs");
-const { default: endpoints_model } = await import("../models/models.oas.cjs");
+const { default: endpoints_model } = await import("../models/models.endpoints.cjs");
 const { default: endpoint_builder_model } = await import("../models/models.endpoint_builder.cjs");
 const { default: builder_template_model } = await import("../models/models.builder_template.cjs");
 const { default: integration_builder_model } = await import("../models/models.integration_builder.cjs");
 const { default: builder_node_model } = await import("../models/models.builder_node.cjs");
 const { default: builder_edge_model } = await import("../models/models.builder_edge.cjs");
-
+const { default: hosts_model } = await import("../models/models.hosts.cjs");
+const { default: oas_model } = await import("../models/models.oas.cjs");
 
 import {
   getRequestParameters,
@@ -51,6 +52,7 @@ async function routes(fastify, options) {
       }
       reply.send(node_data);
     } catch (error) {
+      console.log(error)
       reply.status(500).send({ message: error.message });
     }
   });
@@ -68,7 +70,7 @@ async function routes(fastify, options) {
    */
   fastify.post("/manage/builder", async (request, reply) => {
     try {
-      const data1 = awaithosts_model.findById(request.body.host_id);
+      const data1 = await hosts_model.findById(request.body.host_id);
       const truepath = (request.body.hostname + request.body.endpoint).replace(
         data1.hostname,
         ""
@@ -114,6 +116,7 @@ async function routes(fastify, options) {
 
     try {
       if (request.query.path) {
+
         const queryPath = request.query.path.split("/");
         if (queryPath[0] == "") queryPath.shift();
 
@@ -131,11 +134,11 @@ async function routes(fastify, options) {
 
         const substringToMatch = parsed.host.split(":")[0];
 
-        const matchingOas = awaitoas_model.find({
+        const matchingOas = await oas_model.find({
           "servers.url": { $regex: substringToMatch },
         });
 
-        const matchingHosts = awaithosts_model.find({
+        const matchingHosts = await hosts_model.find({
           hostname: { $regex: substringToMatch },
         });
 
@@ -144,6 +147,7 @@ async function routes(fastify, options) {
         let bestMatch = null;
         let bestMatchLength = 0;
         let bestMatchLength2 = 0;
+
 
         matchingOas.forEach((searchedOas) => {
           searchedOas.servers.forEach((server) => {
@@ -201,11 +205,13 @@ async function routes(fastify, options) {
 
       const builderId = request.query.event || mongoEndpoint?._doc.builder_id;
 
+      console.log(builderId)
+
       const builderData = await getBuilder(
         builderId,
         parameters,
         response,
-        request.query.event ? true : false
+        request.query.event ? 1 : 0
       );
       if (!builderData) throw { error: "NoBuilder", host: host._id };
       const { nodes, edges } = builderData;
@@ -247,7 +253,7 @@ async function routes(fastify, options) {
    */
   fastify.post("/manage/builder/create", async (request, reply) => {
     try {
-      const host = awaithosts_model.findById(request.body.host_id);
+      const host = await hosts_model.findById(request.body.host_id);
       const parameters = await getFields({
         request,
         hostname: host.hostname,
@@ -374,7 +380,7 @@ async function routes(fastify, options) {
    */
   fastify.post("/manage/builder/update", async (request, reply) => {
     try {
-      const data1 = awaithosts_model.find({ forwards: request.body.hostname });
+      const data1 = await hosts_model.find({ forwards: request.body.hostname });
       let host_id = data1[0]._id;
       const endpoint = await endpoints_model.find({
         host_id: host_id,
@@ -471,6 +477,22 @@ async function routes(fastify, options) {
       } catch (error) {
         reply.status(500).send({ message: error.message });
       }
+    }
+  });
+
+  fastify.get("/manage/builder/getNodeStruc", async (request, reply) => {
+    try {
+      const query = { event: request.query.event };
+      if (request.query.type) {
+        query.type = request.query.type;
+        const node_data = await event_struc_model.findOne(query);
+        reply.send(node_data);
+      } else {
+        const node_data = await event_struc_model.find(query);
+        reply.send(node_data);
+      }
+    } catch (error) {
+      reply.status(500).send({ message: error.message });
     }
   });
 }

@@ -110,7 +110,7 @@ export async function createHostHandler(request, reply) {
       }
     }
 
-    const oasSave = await oas.save();
+    const oasSave = await oas_model.save();
     const subdo = `${hostdomain.substring(0, 40)}-${generateRandomString(6)}`;
     const dns = new dns_model({
       sera_config: {
@@ -121,9 +121,9 @@ export async function createHostHandler(request, reply) {
       },
     });
 
-    const dnsSave = await dns.save();
+    const dnsSave = await dns_model.save();
 
-    const data = new Hosts({
+    const data = new hosts_model({
       oas_spec: oasSave._id,
       sera_dns: dnsSave._id,
       frwd_config: {
@@ -236,16 +236,16 @@ async function routes(fastify, options) {
    */
   fastify.get("/manage/host/oas", async (request, reply) => {
     try {
-      let node_data;
       if (request.query.host) {
-        host_data = await hosts_model.findOne({ hostname: request.query.host });
-        oas_data = await oas_model.findOne({ _id: host_data.oas_spec });
+        let host_data = await hosts_model.findOne({ hostname: request.query.host });
+        let oas_data = await oas_model.findOne({ _id: host_data.oas_spec });
         reply.send(oas_data);
       } else {
-        oas_data = await oas_model.find();
+        let oas_data = await oas_model.find();
         reply.send(oas_data);
       }
     } catch (error) {
+      console.log(error)
       reply.status(500).send({ message: error.message });
     }
   });
